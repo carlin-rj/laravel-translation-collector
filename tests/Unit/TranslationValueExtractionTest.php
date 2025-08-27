@@ -177,7 +177,7 @@ class TranslationValueExtractionTest extends TestCase
                 public function test() {
                     $msg1 = __("user.login.success");
                     $msg2 = __("messages.welcome");
-                    $msg3 = __("nonexistent.key");
+                    $msg3 = __("nonexistent.key"); // 这个键不存在于翻译文件中，应该被跳过
                 }
             }'
         );
@@ -196,15 +196,22 @@ class TranslationValueExtractionTest extends TestCase
 
         $this->assertNotEmpty($keyTranslations);
 
-        // 查找特定翻译键的值
+        // 验证收集到的翻译键
+        $collectedKeys = array_column($keyTranslations, 'key');
+        
+        // 验证存在的翻译键被正确收集
+        $this->assertContains('user.login.success', $collectedKeys, '存在的翻译键 user.login.success 应该被收集');
+        $this->assertContains('messages.welcome', $collectedKeys, '存在的翻译键 messages.welcome 应该被收集');
+        
+        // 验证不存在的翻译键被跳过（根据新的业务逻辑）
+        $this->assertNotContains('nonexistent.key', $collectedKeys, '不存在的翻译键 nonexistent.key 应该被跳过，不在收集结果中');
+
+        // 验证收集到的翻译键的值
         foreach ($keyTranslations as $translation) {
             if ($translation['key'] === 'user.login.success') {
                 $this->assertEquals('Login successful', $translation['default_text']);
             } elseif ($translation['key'] === 'messages.welcome') {
                 $this->assertEquals('Welcome to our application', $translation['default_text']);
-            } elseif ($translation['key'] === 'nonexistent.key') {
-                // 不存在的键应该返回键本身
-                $this->assertEquals('nonexistent.key', $translation['default_text']);
             }
         }
     }
@@ -257,6 +264,68 @@ class TranslationValueExtractionTest extends TestCase
         $this->assertContains('nested.user.profile.email', $keys);
         $this->assertContains('nested.user.settings.theme', $keys);
         $this->assertContains('nested.admin.dashboard', $keys);
+    }
+
+    /**
+     * 测试跳过不存在的翻译键
+     */
+    public function test_skips_nonexistent_translation_keys()
+    {
+        $tempDir = $this->getTempDirectory();
+        $this->createTestTranslationFiles($tempDir);
+
+        // 创建包含多个不存在翻译键的测试文件
+        file_put_contents(
+            $tempDir . '/app/SkipTestController.php',
+            '<?php
+            class SkipTestController {
+                public function test() {
+                    // 存在的翻译键
+                    $existing1 = __("user.login.success");
+                    $existing2 = __("messages.welcome");
+                    
+                    // 不存在的翻译键，应该被跳过
+                    $nonexistent1 = __("message.error");
+                    $nonexistent2 = __("user.unknown.action");
+                    $nonexistent3 = __("completely.missing.key");
+                    
+                    // 存在的翻译键（嵌套的）
+                    $existing3 = __("messages.user.name");
+                }
+            }'
+        );
+
+        config([
+            'translation-collector.scan_paths' => [$tempDir . '/app/'],
+            'translation-collector.lang_path' => $tempDir . '/lang',
+        ]);
+
+        $translations = $this->collector->scanPaths([$tempDir . '/app/']);
+
+        // 过滤出非直接文本的翻译（即翻译键）
+        $keyTranslations = array_filter($translations, function ($t) {
+            return isset($t['is_direct_text']) && $t['is_direct_text'] === false;
+        });
+
+        $collectedKeys = array_column($keyTranslations, 'key');
+
+        // 验证存在的翻译键被收集
+        $this->assertContains('user.login.success', $collectedKeys, '存在的翻译键 user.login.success 应该被收集');
+        $this->assertContains('messages.welcome', $collectedKeys, '存在的翻译键 messages.welcome 应该被收集');
+        $this->assertContains('messages.user.name', $collectedKeys, '存在的嵌套翻译键 messages.user.name 应该被收集');
+
+        // 验证不存在的翻译键被跳过
+        $this->assertNotContains('message.error', $collectedKeys, '不存在的翻译键 message.error 应该被跳过');
+        $this->assertNotContains('user.unknown.action', $collectedKeys, '不存在的翻译键 user.unknown.action 应该被跳过');
+        $this->assertNotContains('completely.missing.key', $collectedKeys, '不存在的翻译键 completely.missing.key 应该被跳过');
+
+        // 验证收集的数量（首先查看实际收集到了什么）
+        $expectedExistingKeys = ['user.login.success', 'messages.welcome', 'messages.user.name'];
+        $actualExistingKeys = array_intersect($collectedKeys, $expectedExistingKeys);
+        $this->assertGreaterThanOrEqual(count($expectedExistingKeys), count($actualExistingKeys), '应该至少收集存在的翻译键');
+        
+        // 记录实际收集到的键，用于调试
+        // error_log('Collected keys: ' . json_encode($collectedKeys));
     }
 
     /**

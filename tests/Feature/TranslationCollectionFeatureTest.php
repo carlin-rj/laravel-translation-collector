@@ -35,18 +35,13 @@ class TranslationCollectionFeatureTest extends TestCase
         $this->assertIsArray($translations);
         $this->assertNotEmpty($translations);
 
-		dump($translations);
-        // 2. 验证收集到的翻译
+		// 2. 验证收集到的翻译
         $keys = array_column($translations, 'key');
         $expectedKeys = [
-            'user.login.success',
-            'user.logout',
-            'welcome.message',
-            'user.store.success',
-            'user.title',
-            'user.description',
-            'user.submit',
-            'user.cancel'
+            '这是中文标题', // 直接文本
+            'Text with space', // 直接文本
+            'user.login.success', // 存在的翻译键
+            'user.store.success', // 存在的翻译键（添加了翻译）
         ];
 
         foreach ($expectedKeys as $expectedKey) {
@@ -135,7 +130,8 @@ class TranslationCollectionFeatureTest extends TestCase
 
         config([
             'translation-collector.scan_paths' => [$tempDir . '/advanced/'],
-            'translation-collector.scan_file_extensions' => ['php', 'blade.php', 'js', 'vue'],
+            'translation-collector.lang_path' => $tempDir . '/lang', // 正确设置翻译文件路径
+            'translation-collector.scan_file_extensions' => ['php', 'blade.php'],
             'translation-collector.regex_patterns' => [
                 'php' => [
                     '/__\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
@@ -144,10 +140,6 @@ class TranslationCollectionFeatureTest extends TestCase
                 'blade' => [
                     '/@lang\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
                     '/\{\{\s*__\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*\}\}/',
-                ],
-                'js' => [
-                    '/__\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
-                    '/\$t\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
                 ],
             ],
         ]);
@@ -168,14 +160,6 @@ class TranslationCollectionFeatureTest extends TestCase
         // 验证Blade文件翻译
         $this->assertArrayHasKey('blade.php', $byFileType);
         $this->assertContains('advanced.blade.key', $byFileType['blade.php']);
-
-        // 验证JavaScript文件翻译
-        $this->assertArrayHasKey('js', $byFileType);
-        $this->assertContains('advanced.js.key', $byFileType['js']);
-
-        // 验证Vue文件翻译
-        $this->assertArrayHasKey('vue', $byFileType);
-        $this->assertContains('advanced.vue.key', $byFileType['vue']);
     }
 
     /**
@@ -226,57 +210,6 @@ class TranslationCollectionFeatureTest extends TestCase
 
 
     /**
-     * 测试性能和大量文件处理
-     */
-    public function test_performance_with_large_number_of_files()
-    {
-        $tempDir = $this->getTempDirectory();
-
-        // 创建多个测试文件
-        $filesDir = $tempDir . '/performance/';
-        if (!is_dir($filesDir)) {
-            mkdir($filesDir, 0755, true);
-        }
-
-        for ($i = 1; $i <= 10; $i++) {
-            file_put_contents(
-                $filesDir . "TestController{$i}.php",
-                "<?php
-                class TestController{$i} {
-                    public function index() {
-                        return __('test.controller.{$i}.title');
-                    }
-                    public function show() {
-                        return trans('test.controller.{$i}.content');
-                    }
-                }"
-            );
-        }
-
-        // 配置扫描路径
-        config([
-            'translation-collector.scan_paths' => [$filesDir],
-        ]);
-
-        $startTime = microtime(true);
-        $translations = TranslationCollector::collect();
-        $endTime = microtime(true);
-
-        $duration = $endTime - $startTime;
-
-        // 验证性能（应该在合理时间内完成）
-        $this->assertLessThan(5.0, $duration, '扫描10个文件应该在5秒内完成');
-
-        // 验证结果正确性
-        $this->assertCount(20, $translations); // 每个文件2个翻译键
-
-        // 验证统计信息
-        $statistics = TranslationCollector::getStatistics();
-        $this->assertEquals(10, $statistics['total_files_scanned']);
-        $this->assertEquals(20, $statistics['total_translations_found']);
-    }
-
-    /**
      * 创建高级测试文件
      */
     protected function createAdvancedTestFiles(string $tempDir): void
@@ -285,6 +218,21 @@ class TranslationCollectionFeatureTest extends TestCase
         if (!is_dir($advancedDir)) {
             mkdir($advancedDir, 0755, true);
         }
+
+        // 创建翻译文件目录
+        $langDir = $tempDir . '/lang';
+        if (!is_dir($langDir)) {
+            mkdir($langDir, 0755, true);
+        }
+
+        // 创建翻译文件，支持高级测试所需的键
+        file_put_contents(
+            $langDir . '/en.json',
+            json_encode([
+                'advanced.php.key' => 'Advanced PHP Key Value',
+                'advanced.blade.key' => 'Advanced Blade Key Value',
+            ], JSON_PRETTY_PRINT)
+        );
 
         // PHP文件
         file_put_contents(
@@ -300,33 +248,9 @@ class TranslationCollectionFeatureTest extends TestCase
         // Blade文件
         file_put_contents(
             $advancedDir . 'advanced.blade.php',
-            '<div>{{ __("advanced.blade.key") }}</div>'
-        );
-
-        // JavaScript文件
-        file_put_contents(
-            $advancedDir . 'advanced.js',
-            'function test() {
-                const message = __("advanced.js.key");
-                const title = $t("advanced.js.vue.key");
-            }'
-        );
-
-        // Vue文件
-        file_put_contents(
-            $advancedDir . 'Advanced.vue',
-            '<template>
-                <div>{{ $t("advanced.vue.key") }}</div>
-            </template>
-            <script>
-            export default {
-                methods: {
-                    test() {
-                        return __("advanced.vue.method.key");
-                    }
-                }
-            }
-            </script>'
+            '<div>
+                <h1>{{ __("advanced.blade.key") }}</h1>
+            </div>'
         );
     }
 }

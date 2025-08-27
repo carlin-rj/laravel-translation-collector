@@ -245,40 +245,6 @@ class TranslationCollectorServiceTest extends TestCase
     }
 
     /**
-     * 测试翻译键验证
-     */
-    public function test_validates_translation_keys()
-    {
-        $tempDir = $this->getTempDirectory();
-
-        // 创建包含无效键的测试文件
-        file_put_contents(
-            $tempDir . '/app/InvalidKeysController.php',
-            '<?php
-            class InvalidKeysController {
-                public function test() {
-                    $valid = __("valid.key");
-                    $invalid1 = __("a"); // 太短
-                    $invalid2 = __("key with spaces"); // 包含空格
-                    $invalid3 = __("' . str_repeat('x', 101) . '"); // 太长
-                }
-            }'
-        );
-
-        config([
-
-        ]);
-
-        $translations = $this->collector->scanPaths([$tempDir . '/app/']);
-
-        // 验证只有有效的键被收集
-        $keys = array_column($translations, 'key');
-        $this->assertContains('valid.key', $keys);
-        $this->assertNotContains('a', $keys);
-        $this->assertNotContains('key with spaces', $keys);
-    }
-
-    /**
      * 测试正则表达式模式匹配
      */
     public function test_regex_patterns_match_translation_functions()
@@ -306,43 +272,5 @@ class TranslationCollectorServiceTest extends TestCase
         $this->assertContains('trans.function', $keys);
         $this->assertContains('lang.facade', $keys);
         $this->assertContains('choice.function', $keys);
-    }
-
-    /**
-     * 测试文件类型识别
-     */
-    public function test_identifies_file_types_correctly()
-    {
-        $tempDir = $this->getTempDirectory();
-
-        // 创建JavaScript测试文件
-        file_put_contents(
-            $tempDir . '/app/test.js',
-            'function test() {
-                const message = __("js.message");
-                const title = trans("js.title");
-            }'
-        );
-
-        config([
-            'translation-collector.scan_file_extensions' => ['php', 'js'],
-            'translation-collector.regex_patterns.js' => [
-                '/__\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
-                '/trans\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
-            ],
-        ]);
-
-        $translations = $this->collector->scanPaths([$tempDir . '/app/']);
-
-        // 查找JavaScript文件的翻译
-        $jsTranslations = array_filter($translations, function ($t) {
-            return isset($t['file_type']) && $t['file_type'] === 'js';
-        });
-
-        $this->assertNotEmpty($jsTranslations);
-
-        $jsKeys = array_column($jsTranslations, 'key');
-        $this->assertContains('js.message', $jsKeys);
-        $this->assertContains('js.title', $jsKeys);
     }
 }

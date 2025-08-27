@@ -160,13 +160,28 @@ abstract class TestCase extends OrchestraTestCase
             json_encode([
                 'user.login.success' => 'Login successful',
                 'user.logout' => 'Logout',
+                'user.title' => 'title',
+                'user.description' => 'description',
+				'user.submit' => 'submit',
+				'user.cancel' => 'cancel',
+				'advanced.blade.key' => 'dddd',
+				'advanced.php.key' => 'Advanced PHP key', // 为高级测试添加翻译
+				'user.store.success' => 'Store successful', // 为getTestPhpContent中的键添加翻译
             ], JSON_PRETTY_PRINT)
         );
 
         file_put_contents(
             $this->getTempDirectory('lang/zh_CN.json'),
             json_encode([
-                'user.login.success' => '登录成功',
+				'user.login.success' => 'Login 成功',
+				'user.logout' => '退出',
+				'user.title' => '标题',
+				'user.description' => '描述',
+				'user.submit' => '描述1',
+				'user.cancel' => '描述2',
+				'advanced.blade.key' => 'dd',
+				'advanced.php.key' => 'PHP高级键', // 为高级测试添加翻译
+				'user.store.success' => '存储成功', // 为getTestPhpContent中的键添加翻译
             ], JSON_PRETTY_PRINT)
         );
     }
@@ -226,7 +241,6 @@ class TestController extends Controller
     {
         $message = __("user.login.success");
         $logout = trans("user.logout");
-        $welcome = __("welcome.message");
         
         return response()->json([
             "message" => $message,

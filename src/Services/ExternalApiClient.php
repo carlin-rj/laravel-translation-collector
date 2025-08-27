@@ -57,13 +57,14 @@ class ExternalApiClient implements ExternalApiClientInterface
             $endpoint = $this->config['endpoints']['add_translation'];
             $payload = [
                 'project_id' => $this->config['project_id'],
+                'languages' =>array_keys($this->config['supported_languages']),
                 'translations' => $this->formatTranslationsForApi($translations),
             ];
 
             $response = $this->makeRequest('POST', $endpoint, $payload);
-            
+
             $this->log('info', '翻译新增成功', ['response' => $response]);
-            
+
             return $response;
 
         } catch (\Exception $e) {
@@ -89,9 +90,9 @@ class ExternalApiClient implements ExternalApiClientInterface
             ], $options);
 
             $response = $this->makeRequest('GET', $endpoint, null, $queryParams);
-            
+
             $this->log('info', '翻译获取成功', ['count' => count($response['data'] ?? [])]);
-            
+
             return $response['data'] ?? [];
 
         } catch (\Exception $e) {
@@ -119,9 +120,9 @@ class ExternalApiClient implements ExternalApiClientInterface
             ];
 
             $response = $this->makeRequest('POST', $endpoint, $payload);
-            
+
             $this->log('info', '翻译同步成功', ['response' => $response]);
-            
+
             return $response;
 
         } catch (\Exception $e) {
@@ -141,7 +142,7 @@ class ExternalApiClient implements ExternalApiClientInterface
     {
         $results = [];
         $batches = array_chunk($translations, $batchSize);
-        
+
         $this->log('info', '开始批量上传翻译', [
             'total_count' => count($translations),
             'batch_size' => $batchSize,
@@ -151,7 +152,7 @@ class ExternalApiClient implements ExternalApiClientInterface
         foreach ($batches as $index => $batch) {
             try {
                 $this->log('info', "处理批次 " . ($index + 1) . "/" . count($batches));
-                
+
                 $result = $this->addTranslations($batch);
                 $results[] = $result;
 
@@ -216,7 +217,7 @@ class ExternalApiClient implements ExternalApiClientInterface
     public function setConfig(array $config): self
     {
         $this->config = array_merge($this->config, $config);
-        
+
         // 重新初始化HTTP客户端
         $this->httpClient = new Client([
             'base_uri' => $this->config['base_url'],
@@ -260,7 +261,7 @@ class ExternalApiClient implements ExternalApiClientInterface
             try {
                 $response = $this->httpClient->request($method, $endpoint, $options);
                 $body = $response->getBody()->getContents();
-                
+
                 return json_decode($body, true) ?: [];
 
             } catch (RequestException $e) {
@@ -316,13 +317,13 @@ class ExternalApiClient implements ExternalApiClientInterface
     protected function log(string $level, string $message, array $context = []): void
     {
         $config = config('translation-collector.logging', ['enabled' => true]);
-        
+
         if (!$config['enabled']) {
             return;
         }
 
         $channel = $config['channel'] ?? 'daily';
-        
+
         Log::channel($channel)->{$level}("[ExternalApiClient] {$message}", $context);
     }
 }

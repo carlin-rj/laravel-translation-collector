@@ -229,15 +229,19 @@ class ExternalApiClientTest extends TestCase
         $translations = [
             ['key' => 'test.key.1', 'default_text' => 'Test 1'],
             ['key' => 'test.key.2', 'default_text' => 'Test 2'],
+            ['key' => 'test.key.3', 'default_text' => 'Test 3'],
+            ['key' => 'test.key.4', 'default_text' => 'Test 4'],
         ];
 
-        // 第一个批次成功，第二个失败
+        // 第一个批次成功，第二个批次失败（考虑重试机制，需要多个失败响应）
         $this->mockHandler->append(
             new Response(200, [], json_encode(['success' => true, 'batch' => 1])),
+            new RequestException('Batch 2 failed', new \GuzzleHttp\Psr7\Request('POST', 'test')),
+            new RequestException('Batch 2 failed', new \GuzzleHttp\Psr7\Request('POST', 'test')),
             new RequestException('Batch 2 failed', new \GuzzleHttp\Psr7\Request('POST', 'test'))
         );
 
-        $results = $this->apiClient->batchUpload($translations, 1);
+        $results = $this->apiClient->batchUpload($translations, 2); // 批次大小为2，会产生2个批次
 
         $this->assertCount(2, $results);
         $this->assertEquals(['success' => true, 'batch' => 1], $results[0]);

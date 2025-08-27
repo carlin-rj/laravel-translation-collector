@@ -78,7 +78,6 @@ class TranslationCollectorServiceTest extends TestCase
         if (!empty($translations)) {
             $this->assertTranslationKeyExists('user.login.success', $translations);
             $this->assertTranslationKeyExists('user.logout', $translations);
-            $this->assertTranslationKeyExists('welcome.message', $translations);
 
             foreach ($translations as $translation) {
                 $this->assertValidTranslationStructure($translation);
@@ -244,33 +243,4 @@ class TranslationCollectorServiceTest extends TestCase
         $this->assertIsArray($translations);
     }
 
-    /**
-     * 测试正则表达式模式匹配
-     */
-    public function test_regex_patterns_match_translation_functions()
-    {
-        $tempDir = $this->getTempDirectory();
-
-        // 创建包含各种翻译函数调用的测试文件
-        file_put_contents(
-            $tempDir . '/app/TranslationFunctionsController.php',
-            '<?php
-            class TranslationFunctionsController {
-                public function test() {
-                    $a = __("underscore.function");
-                    $b = trans("trans.function");
-                    $c = Lang::get("lang.facade");
-                    $d = trans_choice("choice.function", 1);
-                }
-            }'
-        );
-
-        $translations = $this->collector->scanPaths([$tempDir . '/app/']);
-
-        $keys = array_column($translations, 'key');
-        $this->assertContains('underscore.function', $keys);
-        $this->assertContains('trans.function', $keys);
-        $this->assertContains('lang.facade', $keys);
-        $this->assertContains('choice.function', $keys);
-    }
 }

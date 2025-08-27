@@ -65,7 +65,7 @@ class TranslationCollectionFeatureTest extends TestCase
         // 5. 验证文件类型识别
         $fileTypes = array_unique(array_column($translations, 'file_type'));
         $this->assertContains('php', $fileTypes);
-        $this->assertContains('blade.php', $fileTypes);
+        $this->assertContains('json', $fileTypes);
 
         // 6. 获取统计信息
         $statistics = TranslationCollector::getStatistics();
@@ -105,13 +105,12 @@ class TranslationCollectionFeatureTest extends TestCase
             $this->assertStringContainsString('Modules/User', $translation['source_file']);
         }
 
-        // 验证找到了Blade模板中的翻译
-        $bladeTranslations = array_filter($userTranslations, function ($t) {
-            return $t['file_type'] === 'blade.php';
+        $translations = array_filter($userTranslations, function ($t) {
+            return in_array($t['file_type'], ['php', 'json']);
         });
-        $this->assertNotEmpty($bladeTranslations);
+        $this->assertNotEmpty($translations);
 
-        $bladeKeys = array_column($bladeTranslations, 'key');
+        $bladeKeys = array_column($translations, 'key');
         $this->assertContains('user.title', $bladeKeys);
         $this->assertContains('user.description', $bladeKeys);
         $this->assertContains('user.submit', $bladeKeys);
@@ -154,12 +153,12 @@ class TranslationCollectionFeatureTest extends TestCase
         }
 
         // 验证PHP文件翻译
-        $this->assertArrayHasKey('php', $byFileType);
-        $this->assertContains('advanced.php.key', $byFileType['php']);
+        $this->assertArrayHasKey('json', $byFileType);
+        $this->assertContains('advanced.php.key', $byFileType['json']);
 
         // 验证Blade文件翻译
-        $this->assertArrayHasKey('blade.php', $byFileType);
-        $this->assertContains('advanced.blade.key', $byFileType['blade.php']);
+        $this->assertArrayHasKey('json', $byFileType);
+        $this->assertContains('advanced.blade.key', $byFileType['json']);
     }
 
     /**

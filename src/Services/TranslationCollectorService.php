@@ -317,7 +317,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 // 分析翻译键和值
                 $translationData = $this->analyzeTranslationKeyAndValue($extractedText);
 				//不正常的翻译键，跳过
-				if (is_null($translationData['laravel_language_file'])) {
+				if (is_null($translationData['file_type'])) {
 					$this->log('error', "文件: {$filePath} 行号: {$lineNumber} 未获取到翻译值: {$extractedText}");
 					continue;
 				}
@@ -325,12 +325,11 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 $translations[] = [
 					'key'                   => $translationData['key'],
 					'default_text'          => $translationData['value'],
-					'laravel_language_file' => $translationData['laravel_language_file'],
 					'source_file'           => $filePath,
 					'line_number'           => $lineNumber,
 					'context'               => $context,
 					'module'                => $this->detectModule($filePath),
-					'file_type'             => $extension,
+					'file_type'             => $translationData['file_type'],
 					'is_direct_text'        => $translationData['is_direct_text'],
 					'source_type'           => 'code_scan',
 					'created_at'            => now()->toISOString(),
@@ -559,14 +558,13 @@ class TranslationCollectorService implements TranslationCollectorInterface
             ->{$level}("[TranslationCollector] {$message}", $context);
     }
 
-    /**
-     * 扫描现有翻译文件
-     *
-     * @param string|array $languages 指定语言，为空则扫描所有支持的语言
-     * @param array $options 扫描选项
-     * @return array
-     */
-    public function scanExistingTranslations($languages = null, array $options = []): array
+	/**
+	 * 扫描现有翻译文件
+	 *
+	 * @param array|string|null $languages 指定语言，为空则扫描所有支持的语言
+	 * @return array
+	 */
+    public function scanExistingTranslations(array|string|null $languages = null): array
     {
         $langPath = $this->config['lang_path'];
 
@@ -656,7 +654,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
                         'file_type' => 'json',
                         'language' => $language,
                         'source_type' => 'translation_file',
-                        'is_direct_text' => false,
+                        'is_direct_text' => true,
                         'created_at' => now()->toISOString(),
                     ];
                 }
@@ -722,7 +720,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 $translations[] = [
                     'key' => $fullKey,
                     'default_text' => $value,
-                    'source_file' => $filePath,
+					'source_file' => $filePath,
                     'line_number' => 1,
                     'context' => "['{$key}' => '{$value}']",
                     'module' => null,
@@ -754,7 +752,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 'key' => $extractedText,
                 'value' => $extractedText,
                 'is_direct_text' => true,
-				'laravel_language_file' => 'json',
+				'file_type' => 'json',
             ];
         } else {
             // 翻译键：尝试从翻译文件中查找对应值
@@ -763,7 +761,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
 				'key'                   => $extractedText,
 				'value'                 => $value['value'] ?? null,
 				'is_direct_text'        => false,
-				'laravel_language_file' => $value['laravel_language_file'] ?? null,
+				'file_type' => $value['file_type'] ?? null,
 			];
         }
     }
@@ -801,7 +799,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
         if ($value !== null) {
 			return [
 				'value' => $value,
-				'laravel_language_file' => 'php',
+				'file_type' => 'php',
 			];
         }
 
@@ -810,7 +808,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
         if ($value !== null) {
 			return [
 				'value' => $value,
-				'laravel_language_file' => 'json',
+				'file_type' => 'json',
 			];
         }
 

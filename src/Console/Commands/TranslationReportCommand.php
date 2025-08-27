@@ -212,11 +212,11 @@ class TranslationReportCommand extends Command
         // 按语言统计翻译覆盖率
         $languageStats = [];
         $totalKeys = count($data['collected']);
-        
+
         foreach ($data['local'] as $language => $translations) {
             $translatedCount = count($translations);
             $coveragePercent = $totalKeys > 0 ? round(($translatedCount / $totalKeys) * 100, 2) : 0;
-            
+
             $languageStats[$language] = [
                 'total_translations' => $translatedCount,
                 'coverage_percent' => $coveragePercent,
@@ -242,7 +242,7 @@ class TranslationReportCommand extends Command
         foreach ($data['local'] as $language => $translations) {
             $localKeys = array_keys($translations);
             $missingKeys = array_diff($collectedKeys, $localKeys);
-            
+
             if (!empty($missingKeys)) {
                 $missing[$language] = array_map(function ($key) use ($data) {
                     $translation = collect($data['collected'])->firstWhere('key', $key);
@@ -272,7 +272,7 @@ class TranslationReportCommand extends Command
         foreach ($data['local'] as $language => $translations) {
             $localKeys = array_keys($translations);
             $unusedKeys = array_diff($localKeys, $collectedKeys);
-            
+
             if (!empty($unusedKeys)) {
                 $unused[$language] = array_map(function ($key) use ($translations) {
                     return [
@@ -334,7 +334,7 @@ class TranslationReportCommand extends Command
 
         foreach ($moduleGroups as $module => $translations) {
             $keys = array_column($translations, 'key');
-            
+
             $analysis[$module] = [
                 'total_keys' => count($keys),
                 'unique_files' => count(array_unique(array_column($translations, 'source_file'))),
@@ -400,14 +400,14 @@ class TranslationReportCommand extends Command
 
         foreach ($languages as $language) {
             $languageDir = "{$langPath}/{$language}";
-            
+
             if (!File::exists($languageDir)) {
                 continue;
             }
 
             // 尝试加载不同格式的文件
             $langData = [];
-            
+
             // JSON 格式 - 直接在lang目录下的{language}.json文件
             $jsonFile = "{$langPath}/{$language}.json";
             if (File::exists($jsonFile)) {
@@ -489,7 +489,7 @@ class TranslationReportCommand extends Command
         $html .= '<h1>翻译状态报告</h1>';
         $html .= '<pre>' . json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . '</pre>';
         $html .= '</body></html>';
-        
+
         return $html;
     }
 
@@ -502,7 +502,7 @@ class TranslationReportCommand extends Command
     protected function generateCsvReport(array $report): string
     {
         $csv = "语言,总键数,已翻译,未翻译,覆盖率,状态\n";
-        
+
         foreach ($report['language_coverage'] ?? [] as $langCode => $coverage) {
             $csv .= sprintf(
                 '"%s","%s","%s","%s","%s%%","%s"' . "\n",
@@ -567,7 +567,7 @@ class TranslationReportCommand extends Command
     protected function saveReportToFile(string $path, string $content): void
     {
         $directory = dirname($path);
-        
+
         if (!File::exists($directory)) {
             File::makeDirectory($directory, 0755, true);
         }

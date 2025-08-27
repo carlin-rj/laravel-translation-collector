@@ -106,8 +106,9 @@ class TranslationReportCommand extends Command
         // 收集项目中的翻译
         $collectedTranslations = $this->collector->collect();
 
-        // 获取本地翻译文件
-        $localTranslations = $this->loadLocalTranslations();
+		// 获取本地翻译文件
+		$localTranslations = $this->collector->scanExistingTranslations();
+		
 
         // 获取外部系统翻译
         $externalTranslations = [];
@@ -385,61 +386,6 @@ class TranslationReportCommand extends Command
         } else {
             return 'poor';
         }
-    }
-
-    /**
-     * 加载本地翻译
-     *
-     * @return array
-     */
-    protected function loadLocalTranslations(): array
-    {
-        $translations = [];
-        $langPath = $this->config['lang_path'];
-        $languages = $this->option('language') ?: array_keys($this->config['supported_languages']);
-
-        foreach ($languages as $language) {
-            $languageDir = "{$langPath}/{$language}";
-
-            if (!File::exists($languageDir)) {
-                continue;
-            }
-
-            // 尝试加载不同格式的文件
-            $langData = [];
-
-            // JSON 格式 - 直接在lang目录下的{language}.json文件
-            $jsonFile = "{$langPath}/{$language}.json";
-            if (File::exists($jsonFile)) {
-                $content = File::get($jsonFile);
-                $langData = array_merge($langData, json_decode($content, true) ?: []);
-            }
-
-            // PHP 格式 - 扫描lang/{language}/目录下的所有.php文件
-            if (File::exists($languageDir) && File::isDirectory($languageDir)) {
-                $phpFiles = File::glob("{$languageDir}/*.php");
-                foreach ($phpFiles as $phpFile) {
-                    try {
-                        $fileData = include $phpFile;
-                        if (is_array($fileData)) {
-                            $fileName = pathinfo($phpFile, PATHINFO_FILENAME);
-                            // 为PHP文件中的键加上文件名前缀
-                            foreach ($fileData as $key => $value) {
-                                $flatData = $this->flattenArray($fileData, $fileName);
-                                $langData = array_merge($langData, $flatData);
-                                break; // 只需要展平一次
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        // 忽略无法加载的文件
-                    }
-                }
-            }
-
-            $translations[$language] = $langData;
-        }
-
-        return $translations;
     }
 
     /**

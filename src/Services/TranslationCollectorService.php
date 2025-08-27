@@ -316,18 +316,24 @@ class TranslationCollectorService implements TranslationCollectorInterface
 
                 // 分析翻译键和值
                 $translationData = $this->analyzeTranslationKeyAndValue($extractedText);
+				//不正常的翻译键，跳过
+				if (is_null($translationData['laravel_language_file'])) {
+					$this->log('error', "文件: {$filePath} 行号: {$lineNumber} 未获取到翻译值: {$extractedText}");
+					continue;
+				}
 
                 $translations[] = [
-                    'key' => $translationData['key'],
-                    'default_text' => $translationData['value'],
-                    'source_file' => $filePath,
-                    'line_number' => $lineNumber,
-                    'context' => $context,
-                    'module' => $this->detectModule($filePath),
-                    'file_type' => $extension,
-                    'is_direct_text' => $translationData['is_direct_text'],
-                    'source_type' => 'code_scan',
-                    'created_at' => now()->toISOString(),
+					'key'                   => $translationData['key'],
+					'default_text'          => $translationData['value'],
+					'laravel_language_file' => $translationData['laravel_language_file'],
+					'source_file'           => $filePath,
+					'line_number'           => $lineNumber,
+					'context'               => $context,
+					'module'                => $this->detectModule($filePath),
+					'file_type'             => $extension,
+					'is_direct_text'        => $translationData['is_direct_text'],
+					'source_type'           => 'code_scan',
+					'created_at'            => now()->toISOString(),
                 ];
             }
         }
@@ -466,14 +472,8 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 return $patterns['php'] ?? [];
             case 'blade.php':
                 return array_merge($patterns['php'] ?? [], $patterns['blade'] ?? []);
-            case 'js':
-            case 'vue':
-            case 'jsx':
-            case 'ts':
-            case 'tsx':
-                return $patterns['js'] ?? [];
             default:
-                return $patterns['php'] ?? [];
+                return [];
         }
     }
 
@@ -754,15 +754,17 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 'key' => $extractedText,
                 'value' => $extractedText,
                 'is_direct_text' => true,
+				'laravel_language_file' => 'json',
             ];
         } else {
             // 翻译键：尝试从翻译文件中查找对应值
             $value = $this->resolveTranslationValue($extractedText);
             return [
-                'key' => $extractedText,
-                'value' => $value,
-                'is_direct_text' => false,
-            ];
+				'key'                   => $extractedText,
+				'value'                 => $value['value'] ?? null,
+				'is_direct_text'        => false,
+				'laravel_language_file' => $value['laravel_language_file'] ?? null,
+			];
         }
     }
 
@@ -786,9 +788,9 @@ class TranslationCollectorService implements TranslationCollectorInterface
      * 解析翻译键对应的值
      *
      * @param string $key
-     * @return string
+     * @return array
      */
-    protected function resolveTranslationValue(string $key): string
+    protected function resolveTranslationValue(string $key): array
     {
 		$defaultLanguage = $this->config['default_language'];
 
@@ -797,17 +799,23 @@ class TranslationCollectorService implements TranslationCollectorInterface
         // 1. 尝试从PHP数组文件中查找 (优先级高)
         $value = $this->resolveFromPhpFiles($key, $defaultLanguage, $langPath);
         if ($value !== null) {
-            return $value;
+			return [
+				'value' => $value,
+				'laravel_language_file' => 'php',
+			];
         }
 
         // 2. 尝试从JSON文件中查找
         $value = $this->resolveFromJsonFile($key, $defaultLanguage, $langPath);
         if ($value !== null) {
-            return $value;
+			return [
+				'value' => $value,
+				'laravel_language_file' => 'json',
+			];
         }
 
         // 3. 都没找到，返回键本身
-        return '';
+        return [];
     }
 
     /**

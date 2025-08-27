@@ -408,17 +408,32 @@ class TranslationReportCommand extends Command
             // 尝试加载不同格式的文件
             $langData = [];
             
-            // JSON 格式
-            $jsonFile = "{$languageDir}/{$language}.json";
+            // JSON 格式 - 直接在lang目录下的{language}.json文件
+            $jsonFile = "{$langPath}/{$language}.json";
             if (File::exists($jsonFile)) {
                 $content = File::get($jsonFile);
                 $langData = array_merge($langData, json_decode($content, true) ?: []);
             }
 
-            // PHP 格式
-            $phpFile = "{$languageDir}/{$language}.php";
-            if (File::exists($phpFile)) {
-                $langData = array_merge($langData, include $phpFile);
+            // PHP 格式 - 扫描lang/{language}/目录下的所有.php文件
+            if (File::exists($languageDir) && File::isDirectory($languageDir)) {
+                $phpFiles = File::glob("{$languageDir}/*.php");
+                foreach ($phpFiles as $phpFile) {
+                    try {
+                        $fileData = include $phpFile;
+                        if (is_array($fileData)) {
+                            $fileName = pathinfo($phpFile, PATHINFO_FILENAME);
+                            // 为PHP文件中的键加上文件名前缀
+                            foreach ($fileData as $key => $value) {
+                                $flatData = $this->flattenArray($fileData, $fileName);
+                                $langData = array_merge($langData, $flatData);
+                                break; // 只需要展平一次
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // 忽略无法加载的文件
+                    }
+                }
             }
 
             $translations[$language] = $langData;
@@ -559,5 +574,30 @@ class TranslationReportCommand extends Command
 
         File::put($path, $content);
         $this->info("✅ 报告已保存到: {$path}");
+    }
+
+    /**
+     * 展平嵌套数组
+     *
+     * @param array $array
+     * @param string $prefix
+     * @param string $separator
+     * @return array
+     */
+    protected function flattenArray(array $array, string $prefix = '', string $separator = '.'): array
+    {
+        $result = [];
+
+        foreach ($array as $key => $value) {
+            $newKey = $prefix === '' ? $key : $prefix . $separator . $key;
+
+            if (is_array($value)) {
+                $result = array_merge($result, $this->flattenArray($value, $newKey, $separator));
+            } else {
+                $result[$newKey] = $value;
+            }
+        }
+
+        return $result;
     }
 }

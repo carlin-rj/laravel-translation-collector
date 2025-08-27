@@ -176,7 +176,7 @@ class SyncTranslationsCommand extends Command
             try {
                 // 获取本地翻译
                 $localTranslations = $this->loadLanguageFile($language);
-                
+
                 // 获取外部翻译
                 $externalTranslations = $this->apiClient->getTranslations([
                     'language' => $language
@@ -210,36 +210,36 @@ class SyncTranslationsCommand extends Command
         $langPath = $this->config['lang_path'];
         $format = $this->option('format');
 
-        $filePath = "{$langPath}/{$language}/{$language}.{$format}";
+        // 优先尝试JSON格式文件（直接在lang目录下）
+		$allData = [];
+        $jsonFile = "{$langPath}/{$language}.json";
+        if (File::exists($jsonFile)) {
+            $content = File::get($jsonFile);
+            $jsonData = json_decode($content, true) ?: [];
+			$allData = array_merge($allData, $jsonData);
+        }
 
-        if (!File::exists($filePath)) {
-            // 尝试查找其他格式的文件
-            $alternativeFormats = ['json', 'php'];
-            foreach ($alternativeFormats as $altFormat) {
-                $altPath = "{$langPath}/{$language}/{$language}.{$altFormat}";
-                if (File::exists($altPath)) {
-                    $filePath = $altPath;
-                    $format = $altFormat;
-                    break;
+        // 如果指定format为php或未找到json文件，扫描语言目录下的php文件
+        $languageDir = "{$langPath}/{$language}";
+        if (File::exists($languageDir) && File::isDirectory($languageDir)) {
+            $phpFiles = File::glob("{$languageDir}/*.php");
+
+            foreach ($phpFiles as $phpFile) {
+                try {
+                    $fileData = include $phpFile;
+                    if (is_array($fileData)) {
+                        $fileName = pathinfo($phpFile, PATHINFO_FILENAME);
+                        // 为PHP文件中的键加上文件名前缀
+                        $flatData = $this->flattenArray($fileData, $fileName);
+                        $allData = array_merge($allData, $flatData);
+                    }
+                } catch (\Exception $e) {
+                    // 忽略无法加载的文件
                 }
             }
-        }
-
-        if (!File::exists($filePath)) {
-            return [];
-        }
-
-        $content = File::get($filePath);
-
-        switch ($format) {
-            case 'json':
-                return json_decode($content, true) ?: [];
-            case 'php':
-                return include $filePath;
-            default:
-                return [];
-        }
-    }
+		}
+		return $allData;
+	}
 
     /**
      * 保存语言文件
@@ -251,12 +251,24 @@ class SyncTranslationsCommand extends Command
     {
         $langPath = $this->config['lang_path'];
         $format = $this->option('format');
-        $languageDir = "{$langPath}/{$language}";
-        $filePath = "{$languageDir}/{$language}.{$format}";
 
-        // 确保目录存在
-        if (!File::exists($languageDir)) {
-            File::makeDirectory($languageDir, 0755, true);
+        if ($format === 'json') {
+            // JSON格式保存在 lang/{language}.json
+            $filePath = "{$langPath}/{$language}.json";
+
+            // 确保目录存在
+            if (!File::exists($langPath)) {
+                File::makeDirectory($langPath, 0755, true);
+            }
+        } else {
+            // PHP格式保存在 lang/{language}/messages.php（默认文件名）
+            $languageDir = "{$langPath}/{$language}";
+            $filePath = "{$languageDir}/messages.php"; // 使用默认文件名
+
+            // 确保目录存在
+            if (!File::exists($languageDir)) {
+                File::makeDirectory($languageDir, 0755, true);
+            }
         }
 
         // 检查是否强制覆盖
@@ -387,12 +399,37 @@ class SyncTranslationsCommand extends Command
         foreach ($translations as $translation) {
             $key = $translation['key'] ?? '';
             $value = $translation['value'] ?? $translation['text'] ?? '';
-            
+
             if ($key && $value) {
                 $formatted[$key] = $value;
             }
         }
 
         return $formatted;
+    }
+
+    /**
+     * 展平嵌套数组
+     *
+     * @param array $array
+     * @param string $prefix
+     * @param string $separator
+     * @return array
+     */
+    protected function flattenArray(array $array, string $prefix = '', string $separator = '.'): array
+    {
+        $result = [];
+
+        foreach ($array as $key => $value) {
+            $newKey = $prefix === '' ? $key : $prefix . $separator . $key;
+
+            if (is_array($value)) {
+                $result = array_merge($result, $this->flattenArray($value, $newKey, $separator));
+            } else {
+                $result[$newKey] = $value;
+            }
+        }
+
+        return $result;
     }
 }

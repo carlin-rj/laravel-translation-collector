@@ -1,0 +1,44 @@
+# Vendor dependencies
+/vendor/
+
+# IDE files
+/.idea/
+/.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Laravel specific
+.env
+.env.backup
+.env.production
+
+# Testing
+/tests/temp/
+phpunit.xml.bak
+.phpunit.result.cache
+
+# Coverage reports
+/coverage/
+/build/
+
+# Node.js
+/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Composer
+composer.phar
+composer.lock
+
+# Log files
+*.log

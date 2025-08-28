@@ -22,6 +22,7 @@ return [
             'add_translation' => '/api/translations/add',      // 新增待翻译接口
             'get_translations' => '/api/translations/list',    // 获取翻译列表接口
             'sync_translations' => '/api/translations/sync',   // 同步翻译接口
+            'init_translations' => '/api/translations/init',    // 初始化项目翻译接口
         ],
     ],
 

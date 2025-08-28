@@ -148,6 +148,35 @@ class ExternalApiClient implements ExternalApiClientInterface
     }
 
     /**
+     * 初始化项目翻译
+     *
+     * @param array $translations 翻译数据
+     * @return array
+     */
+    public function initTranslations(array $translations): array
+    {
+        try {
+            $this->log('info', '开始初始化项目翻译', ['count' => count($translations)]);
+
+            $endpoint = $this->config['endpoints']['init_translations'];
+            $payload = [
+                'project_id' => $this->config['project_id'],
+                'translations' => $this->formatTranslationsForInit($translations),
+            ];
+
+            $response = $this->makeRequest('POST', $endpoint, $payload);
+
+            $this->log('info', '项目翻译初始化成功', ['response' => $response]);
+
+            return $response;
+
+        } catch (\Exception $e) {
+            $this->log('error', '项目翻译初始化失败: ' . $e->getMessage());
+            throw new ExternalApiException('项目翻译初始化失败: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
      * 检查外部API连接状态
      *
      * @return bool
@@ -275,6 +304,29 @@ class ExternalApiClient implements ExternalApiClientInterface
                 'source_file' => $translation['source_file'] ?? '',
                 'line_number' => $translation['line_number'] ?? 0,
                 'context' => $translation['context'] ?? '',
+                'module' => $translation['module'] ?? '',
+                'metadata' => [
+                    'file_type' => $translation['file_type'] ?? '',
+                    'created_at' => $translation['created_at'] ?? now()->toISOString(),
+                ],
+            ];
+        }, $translations);
+    }
+
+    /**
+     * 格式化翻译数据为初始化API格式
+     *
+     * @param array $translations
+     * @return array
+     */
+    protected function formatTranslationsForInit(array $translations): array
+    {
+        return array_map(function ($translation) {
+            return [
+                'key' => $translation['key'],
+                'default_text' => $translation['default_text'],
+                'value' => $translation['value'],
+                'language' => $translation['language'],
                 'module' => $translation['module'] ?? '',
                 'metadata' => [
                     'file_type' => $translation['file_type'] ?? '',

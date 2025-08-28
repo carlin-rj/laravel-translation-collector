@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Carlin\LaravelTranslationCollector\Console\Commands\CollectTranslationsCommand;
 use Carlin\LaravelTranslationCollector\Console\Commands\SyncTranslationsCommand;
 use Carlin\LaravelTranslationCollector\Console\Commands\TranslationReportCommand;
+use Carlin\LaravelTranslationCollector\Console\Commands\InitTranslationsCommand;
 use Carlin\LaravelTranslationCollector\Contracts\TranslationCollectorInterface;
 use Carlin\LaravelTranslationCollector\Contracts\ExternalApiClientInterface;
 use Carlin\LaravelTranslationCollector\Services\TranslationCollectorService;
@@ -43,6 +44,7 @@ class TranslationCollectorServiceProvider extends ServiceProvider
                 CollectTranslationsCommand::class,
                 SyncTranslationsCommand::class,
                 TranslationReportCommand::class,
+                InitTranslationsCommand::class,
             ]);
         }
 

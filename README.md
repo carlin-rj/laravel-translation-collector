@@ -8,6 +8,7 @@ Laravel 翻译文本自动收集器扩展包，用于自动收集项目中的翻
 - 🏗️ **模块化支持**: 完美支持 `nwidart/laravel-modules` 模块化架构
 - 🌍 **多语言**: 支持多种语言格式 (JSON、PHP)
 - 🔄 **双向同步**: 支持与外部翻译系统的双向同步
+- 🚀 **初始化翻译**: 一键将本地翻译文件初始化到外部系统
 - 📊 **详细报告**: 生成详细的翻译状态报告
 - ⚡ **高性能**: 支持批量处理和缓存机制
 - 🛠️ **可配置**: 丰富的配置选项
@@ -91,7 +92,26 @@ php artisan translation:sync --language=zh_CN,en
 php artisan translation:sync --dry-run
 ```
 
-#### 3. 生成报告
+#### 3. 初始化翻译
+
+```bash
+# 将本地翻译文件初始化到外部系统（用于首次集成）
+php artisan translation:init
+
+# 指定语言初始化
+php artisan translation:init --language=en,zh_CN
+
+# 查看将要初始化的内容（干跑模式）
+php artisan translation:init --dry-run
+
+# 强制执行（跳过确认）
+php artisan translation:init --force
+
+# 指定批量大小
+php artisan translation:init --batch-size=50
+```
+
+#### 4. 生成报告
 
 ```bash
 # 生成完整报告
@@ -198,6 +218,7 @@ class TranslationService
         'add_translation' => '/api/translations/add',
         'get_translations' => '/api/translations/list',
         'sync_translations' => '/api/translations/sync',
+        'init_translations' => '/api/translations/init',
     ],
 ],
 ```

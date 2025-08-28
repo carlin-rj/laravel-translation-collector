@@ -103,6 +103,35 @@ per_page: int (optional, default: 100)
 }
 ```
 
+### 2.4 初始化项目翻译 POST /api/translations/init
+**请求参数**:
+```json
+{
+  "project_id": "project_123",
+  "translations": [
+    {
+      "key": "user.login",
+      "default_text": "Login",
+      "value": "login",
+      "language": "en",
+      "module": "User",
+      "metadata": {
+        "file_type": "php",
+        "created_at": "2025-08-27T10:00:00Z"
+      }
+    }
+  ]
+}
+```
+**响应**:
+```json
+{
+  "success": true,
+  "message": "successfully",
+  "data": {}
+}
+```
+
 ## 3. 错误响应格式
 
 ```json

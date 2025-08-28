@@ -646,7 +646,8 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 if (is_string($value)) {
                     $translations[] = [
                         'key' => $key,
-                        'default_text' => $value,
+                        'default_text' => $key,
+                        'value' => $value,
                         'source_file' => $filePath,
                         'line_number' => 1,
                         'context' => json_encode([$key => $value]),
@@ -718,17 +719,18 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 $translations = array_merge($translations, $nestedTranslations);
             } elseif (is_string($value)) {
                 $translations[] = [
-                    'key' => $fullKey,
-                    'default_text' => $value,
-					'source_file' => $filePath,
-                    'line_number' => 1,
-                    'context' => "['{$key}' => '{$value}']",
-                    'module' => null,
-                    'file_type' => 'php',
-                    'language' => $language,
-                    'source_type' => 'translation_file',
-                    'is_direct_text' => false,
-                    'created_at' => now()->toISOString(),
+					'key'            => $fullKey,
+					'default_text'   => $value,
+					'value'          => $value,
+					'source_file'    => $filePath,
+					'line_number'    => 1,
+					'context'        => "['{$key}' => '{$value}']",
+					'module'         => null,
+					'file_type'      => 'php',
+					'language'       => $language,
+					'source_type'    => 'translation_file',
+					'is_direct_text' => false,
+					'created_at'     => now()->toISOString(),
                 ];
             }
         }

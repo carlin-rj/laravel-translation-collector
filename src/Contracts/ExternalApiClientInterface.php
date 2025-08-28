@@ -13,6 +13,14 @@ interface ExternalApiClientInterface
     public function addTranslations(array $translations): array;
 
     /**
+     * 初始化项目翻译
+     *
+     * @param array $translations 翻译数据
+     * @return array
+     */
+    public function initTranslations(array $translations): array;
+
+    /**
      * 从外部系统获取所有翻译
      *
      * @param array $options 查询选项

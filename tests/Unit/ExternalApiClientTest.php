@@ -55,6 +55,7 @@ class ExternalApiClientTest extends TestCase
                 'add_translation' => '/api/translations/add',
                 'get_translations' => '/api/translations/list',
                 'sync_translations' => '/api/translations/sync',
+                'init_translations' => '/api/translations/init',
             ],
         ];
 
@@ -349,5 +350,104 @@ class ExternalApiClientTest extends TestCase
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
+    }
+
+    /**
+     * 测试初始化翻译成功
+     */
+    public function test_can_init_translations_successfully()
+    {
+        $translations = [
+            [
+                'key' => 'user.login',
+                'default_text' => 'Login',
+				'value'=>'Login',
+                'language' => 'en',
+                'file_type' => 'php',
+                'module' => 'User',
+                'created_at' => '2025-08-27T10:00:00Z',
+            ],
+            [
+                'key' => 'user.logout',
+                'default_text' => 'Logout',
+				'value' => 'Logout',
+				'language' => 'en',
+                'file_type' => 'php',
+                'module' => 'User',
+                'created_at' => '2025-08-27T10:00:00Z',
+            ],
+			[
+				'key' => 'user.logout',
+				'default_text' => 'Logout',
+				'value' => '退出',
+				'language' => 'zh_CN',
+				'file_type' => 'php',
+				'module' => 'User',
+				'created_at' => '2025-08-27T10:00:00Z',
+			],
+        ];
+
+        $responseData = [
+            'success' => true,
+            'message' => 'Translations initialized successfully',
+            'data' => [],
+        ];
+
+        $this->mockHandler->append(new Response(200, [], json_encode($responseData)));
+
+        $result = $this->apiClient->initTranslations($translations);
+
+        // initTranslations 返回 data 部分，所以预期的结果是空数组
+        $this->assertEquals([], $result);
+    }
+
+    /**
+     * 测试初始化翻译失败
+     */
+    public function test_init_translations_throws_exception_on_failure()
+    {
+        $this->expectException(ExternalApiException::class);
+        $this->expectExceptionMessageMatches('/项目翻译初始化失败/');
+
+        $translations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test Value',
+                'language' => 'en',
+                'file_type' => 'json',
+            ],
+        ];
+
+        $this->mockHandler->append(new RequestException('Network error', new \GuzzleHttp\Psr7\Request('POST', 'test')));
+
+        $this->apiClient->initTranslations($translations);
+    }
+
+    /**
+     * 测试初始化翻译API响应错误
+     */
+    public function test_init_translations_handles_api_error_response()
+    {
+        $this->expectException(ExternalApiException::class);
+        $this->expectExceptionMessageMatches('/Validation failed/');
+
+        $translations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test Value',
+                'language' => 'en',
+                'file_type' => 'json',
+            ],
+        ];
+
+        $errorResponse = [
+            'success' => false,
+            'message' => 'Validation failed',
+            'error' => ['project_id' => 'Project ID is required']
+        ];
+
+        $this->mockHandler->append(new Response(400, [], json_encode($errorResponse)));
+
+        $this->apiClient->initTranslations($translations);
     }
 }

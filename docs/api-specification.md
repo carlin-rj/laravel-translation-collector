@@ -36,33 +36,16 @@ Accept: application/json
 }
 ```
 
-### 2.2 获取支持语言 GET /api/languages
-**请求**: 无参数
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Languages retrieved successfully",
-  "data": {
-    "en": "English",
-    "zh": "中文",
-    "fr": "Français"
-  }
-}
-```
-
-### 2.3 新增翻译 POST /api/translations/add
+### 2.2 采集翻译 POST /api/translations/add
 **请求**:
 ```json
 {
   "project_id": "project_123",
+  "languages": ["en", "zh_CN"],
   "translations": [
     {
       "key": "user.login",
       "default_text": "Login",
-      "source_file": "/path/to/file.php",
-      "line_number": 10,
-      "context": "login form",
       "module": "User",
       "metadata": {
         "file_type": "php",
@@ -79,13 +62,12 @@ Accept: application/json
   "message": "Translations added successfully",
   "data": {
     "added_count": 1,
-    "skipped_count": 0,
-    "translation_ids": ["trans_001"]
+    "skipped_count": 0
   }
 }
 ```
 
-### 2.4 获取翻译列表 GET /api/translations/list
+### 2.3 获取翻译列表 GET /api/translations/list
 **请求参数**:
 ```
 project_id: string (required)
@@ -101,15 +83,19 @@ per_page: int (optional, default: 100)
   "data": [
     {
       "key": "user.login",
-      "value": "Login",
+      "default_text": "Login",
+      "value": "login",
+      "module": "User",
       "language": "en",
       "file_type": "php",
       "updated_at": "2025-08-27T10:00:00Z"
     },
     {
       "key": "welcome",
+      "default_text": "Welcome",
       "value": "Welcome",
-      "language": "en", 
+      "module": "User",
+      "language": "zh_CN", 
       "file_type": "json",
       "updated_at": "2025-08-27T10:00:00Z"
     }

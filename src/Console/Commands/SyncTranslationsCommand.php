@@ -14,7 +14,6 @@ class SyncTranslationsCommand extends Command
      * @var string
      */
     protected $signature = 'translation:sync
-                            {--direction=pull : 同步方向 (pull, push, both)}
                             {--language=* : 指定同步的语言}
                             {--merge-mode=merge : 内容合并模式 (merge, overwrite)}
                             {--dry-run : 仅显示差异，不实际同步}
@@ -33,14 +32,14 @@ class SyncTranslationsCommand extends Command
      *
      * @var ExternalApiClientInterface
      */
-    protected $apiClient;
+    protected ExternalApiClientInterface $apiClient;
 
     /**
      * 配置
      *
      * @var array
      */
-    protected $config;
+    protected array $config;
 
     /**
      * 构造函数
@@ -70,26 +69,12 @@ class SyncTranslationsCommand extends Command
                 return 1;
             }
 
-            $direction = $this->option('direction');
             $languages = $this->option('language') ?: array_keys($this->config['supported_languages']);
 
             // 显示配置信息
-            $this->displaySyncConfiguration($direction, $languages);
+            $this->displaySyncConfiguration($languages);
 
-            switch ($direction) {
-                case 'pull':
-                    $this->pullFromExternal($languages);
-                    break;
-                case 'push':
-                    $this->pushToExternal($languages);
-                    break;
-                case 'both':
-                    $this->syncBidirectional($languages);
-                    break;
-                default:
-                    $this->error("无效的同步方向: {$direction}");
-                    return 1;
-            }
+			$this->pullFromExternal($languages);
 
             $this->info('✅ 翻译同步完成!');
             return 0;
@@ -103,16 +88,14 @@ class SyncTranslationsCommand extends Command
     /**
      * 显示同步配置信息
      *
-     * @param string $direction
      * @param array $languages
      */
-    protected function displaySyncConfiguration(string $direction, array $languages): void
+    protected function displaySyncConfiguration(array $languages): void
     {
         $this->info('📊 同步配置:');
         $this->table(
             ['项目', '值'],
             [
-                ['同步方向', $direction],
                 ['目标语言', implode(', ', $languages)],
                 ['合并模式', $this->option('merge-mode')],
                 ['自动检测格式', $this->option('auto-detect-format') ? '是' : '否'],
@@ -145,13 +128,29 @@ class SyncTranslationsCommand extends Command
                     continue;
                 }
 
-                // 检测文件格式和处理合并
-                $processedData = $this->processExternalTranslations($language, $externalTranslations);
+                // 按file_type分组处理外部翻译
+                $groupedTranslations = $this->groupTranslationsByFileType($externalTranslations);
 
-                // 保存翻译文件
-                $this->saveLanguageFileWithFormat($language, $processedData);
-                
-                $this->info("  - ✅ 已更新 {$language} (" . count($processedData['translations']) . " 项, 格式: {$processedData['format']})");
+                $totalProcessed = 0;
+                $savedFormats = [];
+
+                // 分别处理每个格式的翻译
+                foreach ($groupedTranslations as $fileType => $translations) {
+                    $processedData = $this->processTranslationsByFormat($language, $translations, $fileType);
+
+                    if (!empty($processedData['translations'])) {
+                        $this->saveLanguageFileWithFormat($language, $processedData);
+                        $totalProcessed += count($processedData['translations']);
+                        $savedFormats[] = $processedData['format'];
+                    }
+                }
+
+                if ($totalProcessed > 0) {
+                    $formatStr = implode('+', array_unique($savedFormats));
+                    $this->info("  - ✅ 已更新 {$language} ({$totalProcessed} 项, 格式: {$formatStr})");
+                } else {
+                    $this->warn("  - ⚠️ {$language} 没有有效的翻译数据");
+                }
 
             } catch (\Exception $e) {
                 $this->error("  - ❌ {$language} 同步失败: " . $e->getMessage());
@@ -160,26 +159,118 @@ class SyncTranslationsCommand extends Command
     }
 
     /**
-     * 处理外部翻译数据，支持格式检测和内容合并
+     * 按file_type分组外部翻译数据
      *
-     * @param string $language
      * @param array $externalTranslations
      * @return array
      */
-    protected function processExternalTranslations(string $language, array $externalTranslations): array
+    protected function groupTranslationsByFileType(array $externalTranslations): array
     {
-        // 检测文件格式
-        $detectedFormat = $this->detectFileFormat($externalTranslations);
+        $grouped = [];
+        $validTranslations = 0;
+        $invalidTranslations = 0;
+
+        foreach ($externalTranslations as $translation) {
+            // 验证翻译数据格式
+            if (!$this->validateTranslationData($translation)) {
+                $invalidTranslations++;
+                $this->warn("跳过无效的翻译数据: " . json_encode($translation));
+                continue;
+            }
+
+            // 获取file_type，如果没有则使用默认格式
+            $fileType = 'json'; // 默认值
+
+            if (isset($translation['file_type'])) {
+                $detectedType = strtolower(trim($translation['file_type']));
+                if (in_array($detectedType, ['php', 'json'])) {
+                    $fileType = $detectedType;
+                }
+            }
+
+            // 如果启用自动检测且没有file_type，根据键名格式推断
+            if (!isset($translation['file_type']) && $this->option('auto-detect-format')) {
+                $key = $translation['key'] ?? '';
+                if (str_contains($key, '.')) {
+                    $fileType = 'php'; // 包含点号的键可能来自PHP文件
+                }
+            }
+
+            if (!isset($grouped[$fileType])) {
+                $grouped[$fileType] = [];
+            }
+
+            $grouped[$fileType][] = $translation;
+            $validTranslations++;
+        }
+
+        // 输出处理统计
+        if ($invalidTranslations > 0) {
+            $this->warn("跳过了 {$invalidTranslations} 条无效翻译数据");
+        }
         
-        // 获取本地现有翻译
-        $localTranslations = $this->loadLanguageFile($language);
-        
+        if ($validTranslations > 0) {
+            $this->info("有效翻译数据: {$validTranslations} 条，分组结果: " . implode(', ', array_keys($grouped)));
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * 验证外部翻译数据格式
+     *
+     * @param mixed $translation
+     * @return bool
+     */
+    protected function validateTranslationData($translation): bool
+    {
+        if (!is_array($translation)) {
+            return false;
+        }
+
+        // 必须包含 key 和 value 字段
+        if (!isset($translation['key']) || !isset($translation['value'])) {
+            return false;
+        }
+
+        // key 和 value 不能为空
+        if (empty(trim($translation['key'])) || empty(trim($translation['value']))) {
+            return false;
+        }
+
+        // 如果有 file_type 字段，验证其值是否有效
+        if (isset($translation['file_type'])) {
+            $fileType = strtolower(trim($translation['file_type']));
+            if (!in_array($fileType, ['php', 'json', ''])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 按指定格式处理翻译数据
+     *
+     * @param string $language
+     * @param array $translations
+     * @param string $fileType
+     * @return array
+     */
+    protected function processTranslationsByFormat(string $language, array $translations, string $fileType): array
+    {
+        // 获取对应格式的本地现有翻译
+        $localTranslations = $this->loadLanguageFileByFormat($language, $fileType);
+
+        // 将外部翻译转换为适合的格式
+        $externalFormatted = $this->formatTranslationsForLocal($translations);
+
         // 处理合并或覆盖
-        $finalTranslations = $this->mergeTranslations($localTranslations, $externalTranslations);
-        
+        $finalTranslations = $this->mergeTranslations($localTranslations, $externalFormatted, $fileType);
+
         return [
             'translations' => $finalTranslations,
-            'format' => $detectedFormat,
+            'format' => $fileType,
         ];
     }
 
@@ -209,7 +300,7 @@ class SyncTranslationsCommand extends Command
         // 如果没有检测到，检查键的格式来判断
         foreach ($externalTranslations as $translation) {
             $key = $translation['key'] ?? '';
-            if (strpos($key, '.') !== false) {
+            if (str_contains($key, '.')) {
                 // 包含点号的键可能来自PHP文件
                 return 'php';
             }
@@ -224,27 +315,96 @@ class SyncTranslationsCommand extends Command
      *
      * @param array $localTranslations
      * @param array $externalTranslations
+     * @param string $fileType
      * @return array
      */
-    protected function mergeTranslations(array $localTranslations, array $externalTranslations): array
+    protected function mergeTranslations(array $localTranslations, array $externalTranslations, string $fileType = 'json'): array
     {
         $mergeMode = $this->option('merge-mode');
-        
+
         // 先将外部翻译转换为简单的键值对
         $externalFormatted = $this->formatTranslationsForLocal($externalTranslations);
-        
+
         if ($mergeMode === 'overwrite') {
-            // 完全覆盖模式
-            if (!empty($localTranslations) && !$this->option('force')) {
-                if (!$this->confirm("检测到本地已有翻译文件，是否完全覆盖？")) {
-                    return array_merge($localTranslations, $externalFormatted);
-                }
-            }
-            return $externalFormatted;
+            return $this->handleOverwriteMode($localTranslations, $externalFormatted, $fileType);
         }
-        
+
         // 合并模式（默认）
-        return array_merge($localTranslations, $externalFormatted);
+        return $this->handleMergeMode($localTranslations, $externalFormatted, $fileType);
+    }
+
+    /**
+     * 处理覆盖模式
+     *
+     * @param array $localTranslations
+     * @param array $externalFormatted
+     * @param string $fileType
+     * @return array
+     */
+    protected function handleOverwriteMode(array $localTranslations, array $externalFormatted, string $fileType): array
+    {
+        // 完全覆盖模式
+        if (!empty($localTranslations) && !$this->option('force')) {
+            $fileDesc = $fileType === 'json' ? 'JSON翻译文件' : 'PHP翻译文件';
+            if (!$this->confirm("检测到本地已有{$fileDesc}，是否完全覆盖？")) {
+                return array_merge($localTranslations, $externalFormatted);
+            }
+        }
+        return $externalFormatted;
+    }
+
+    /**
+     * 处理合并模式
+     *
+     * @param array $localTranslations
+     * @param array $externalFormatted
+     * @param string $fileType
+     * @return array
+     */
+    protected function handleMergeMode(array $localTranslations, array $externalFormatted, string $fileType): array
+    {
+        if ($fileType === 'json') {
+            // JSON格式的简单合并
+            return array_merge($localTranslations, $externalFormatted);
+        } else {
+            // PHP格式的智能合并：按文件分组处理
+            return $this->mergePhpTranslationsIntelligently($localTranslations, $externalFormatted);
+        }
+    }
+
+    /**
+     * 智能合并PHP翻译（按文件分组处理）
+     *
+     * @param array $localTranslations
+     * @param array $externalFormatted
+     * @return array
+     */
+    protected function mergePhpTranslationsIntelligently(array $localTranslations, array $externalFormatted): array
+    {
+        // 按文件名分组本地和外部翻译
+        $localGrouped = $this->groupTranslationsByFile($localTranslations);
+        $externalGrouped = $this->groupTranslationsByFile($externalFormatted);
+
+        $mergedTranslations = [];
+
+        // 合并所有文件的翻译
+        $allFiles = array_unique(array_merge(array_keys($localGrouped), array_keys($externalGrouped)));
+
+        foreach ($allFiles as $fileName) {
+            $localFileTranslations = $localGrouped[$fileName] ?? [];
+            $externalFileTranslations = $externalGrouped[$fileName] ?? [];
+
+            // 合并当前文件的翻译
+            $mergedFileTranslations = array_merge($localFileTranslations, $externalFileTranslations);
+            $mergedTranslations = array_merge($mergedTranslations, $mergedFileTranslations);
+
+            if (!empty($externalFileTranslations)) {
+                $count = count($externalFileTranslations);
+                $this->line("    → {$fileName}.php: 合并 {$count} 条翻译");
+            }
+        }
+
+        return $mergedTranslations;
     }
 
     /**
@@ -257,34 +417,34 @@ class SyncTranslationsCommand extends Command
     {
         $translations = $processedData['translations'];
         $format = $processedData['format'];
-        
+
         $langPath = $this->config['lang_path'];
 
         if ($format === 'json') {
-            // JSON格式保存在 lang/{language}.json
-            $filePath = "{$langPath}/{$language}.json";
-
-            // 确保目录存在
-            if (!File::exists($langPath)) {
-                File::makeDirectory($langPath, 0755, true);
-            }
-            
-            $content = json_encode($translations, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-            
+            $this->saveJsonTranslations($language, $translations, $langPath);
         } else {
-            // PHP格式保存在 lang/{language}/messages.php
-            $languageDir = "{$langPath}/{$language}";
-            $filePath = "{$languageDir}/messages.php";
-
-            // 确保目录存在
-            if (!File::exists($languageDir)) {
-                File::makeDirectory($languageDir, 0755, true);
-            }
-            
-            // 将平块的键转换为嵌套数组（仅限PHP格式）
-            $nestedTranslations = $this->unflattenArray($translations);
-            $content = "<?php\n\nreturn " . var_export($nestedTranslations, true) . ";\n";
+            $this->savePhpTranslations($language, $translations, $langPath);
         }
+    }
+
+    /**
+     * 保存JSON格式翻译（单文件）
+     *
+     * @param string $language
+     * @param array $translations
+     * @param string $langPath
+     */
+    protected function saveJsonTranslations(string $language, array $translations, string $langPath): void
+    {
+        // JSON格式保存在 lang/{language}.json
+        $filePath = "{$langPath}/{$language}.json";
+
+        // 确保目录存在
+        if (!File::exists($langPath)) {
+            File::makeDirectory($langPath, 0755, true);
+        }
+
+        $content = json_encode($translations, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         // 检查是否强制覆盖
         if (File::exists($filePath) && !$this->option('force') && !$this->option('dry-run')) {
@@ -292,13 +452,126 @@ class SyncTranslationsCommand extends Command
                 return;
             }
         }
-        
+
         if (!$this->option('dry-run')) {
             File::put($filePath, $content);
             $this->line("    → 已保存到: {$filePath}");
         } else {
-            $this->line("    → [乾跑] 将保存到: {$filePath}");
+            $this->line("    → [干跑] 将保存到: {$filePath}");
         }
+    }
+
+    /**
+     * 保存PHP格式翻译（多文件）
+     *
+     * @param string $language
+     * @param array $translations
+     * @param string $langPath
+     */
+    protected function savePhpTranslations(string $language, array $translations, string $langPath): void
+    {
+        $languageDir = "{$langPath}/{$language}";
+
+        // 确保语言目录存在
+        if (!File::exists($languageDir)) {
+            File::makeDirectory($languageDir, 0755, true);
+        }
+
+        // 按文件名分组翻译
+        $groupedByFile = $this->groupTranslationsByFile($translations);
+
+        foreach ($groupedByFile as $fileName => $fileTranslations) {
+            $filePath = "{$languageDir}/{$fileName}.php";
+
+            // 将平坦的键转换为嵌套数组
+            $nestedTranslations = $this->unflattenArrayForFile($fileTranslations, $fileName);
+            $content = "<?php\n\nreturn " . var_export($nestedTranslations, true) . ";\n";
+
+            // 检查是否强制覆盖
+            if (File::exists($filePath) && !$this->option('force') && !$this->option('dry-run')) {
+                if (!$this->confirm("文件 {$filePath} 已存在，是否覆盖？")) {
+                    continue;
+                }
+            }
+
+            if (!$this->option('dry-run')) {
+                File::put($filePath, $content);
+                $this->line("    → 已保存到: {$filePath}");
+            } else {
+                $this->line("    → [干跑] 将保存到: {$filePath}");
+            }
+        }
+    }
+
+    /**
+     * 按文件名分组翻译
+     * 例如: 'auth.login' -> 归类到 'auth' 文件
+     *       'validation.required' -> 归类到 'validation' 文件
+     *       'simple_key' -> 归类到 'messages' 文件（默认）
+     *
+     * @param array $translations
+     * @return array
+     */
+    protected function groupTranslationsByFile(array $translations): array
+    {
+        $grouped = [];
+
+        foreach ($translations as $key => $value) {
+            // 检查键是否包含点号（命名空间分隔符）
+            if (str_contains($key, '.')) {
+                // 获取第一个点号之前的部分作为文件名
+                $fileName = explode('.', $key, 2)[0];
+            } else {
+                // 没有命名空间的键归类到 messages 文件
+                $fileName = 'messages';
+            }
+
+            if (!isset($grouped[$fileName])) {
+                $grouped[$fileName] = [];
+            }
+
+            $grouped[$fileName][$key] = $value;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * 为特定文件将平坦的键转换为嵌套数组
+     * 移除文件名前缀
+     *
+     * @param array $translations
+     * @param string $fileName
+     * @return array
+     */
+    protected function unflattenArrayForFile(array $translations, string $fileName): array
+    {
+        $result = [];
+
+        foreach ($translations as $key => $value) {
+            // 如果键以文件名开头，移除文件名前缀
+            if (str_starts_with($key, $fileName . '.')) {
+                $cleanKey = substr($key, strlen($fileName) + 1);
+            } else {
+                // 没有前缀的键（如归类到messages的简单键）
+                $cleanKey = $key;
+            }
+
+            // 将清理后的键转换为嵌套结构
+            $keys = explode('.', $cleanKey);
+            $temp = &$result;
+
+            foreach ($keys as $k) {
+                if (!isset($temp[$k])) {
+                    $temp[$k] = [];
+                }
+                $temp = &$temp[$k];
+            }
+
+            $temp = $value;
+        }
+
+        return $result;
     }
 
     /**
@@ -311,96 +584,71 @@ class SyncTranslationsCommand extends Command
     protected function unflattenArray(array $flatArray, string $separator = '.'): array
     {
         $result = [];
-        
+
         foreach ($flatArray as $key => $value) {
             $keys = explode($separator, $key);
             $temp = &$result;
-            
+
             foreach ($keys as $k) {
                 if (!isset($temp[$k])) {
                     $temp[$k] = [];
                 }
                 $temp = &$temp[$k];
             }
-            
+
             $temp = $value;
         }
-        
+
         return $result;
     }
 
     /**
-     * 推送翻译到外部系统
-     *
-     * @param array $languages
-     */
-    protected function pushToExternal(array $languages): void
-    {
-        $this->info('📤 推送翻译到外部系统...');
-        $this->line('');
-        
-        $this->warn('⚠️  注意：推送功能已在 translation:collect --upload 命令中实现');
-        $this->line('');
-        
-        $this->info('💡 建议使用以下命令进行推送：');
-        
-        foreach ($languages as $language) {
-            $this->line("  php artisan translation:collect --upload --language={$language}");
-        }
-        
-        $this->line('');
-        $this->info('该命令支持更完整的功能：');
-        $this->line('  - 自动收集项目中的翻译文本');
-        $this->line('  - 过滤本地不存在的翻译键');
-        $this->line('  - 批量上传和错误处理');
-        $this->line('  - 差异分析和增量同步');
-    }
-
-    /**
-     * 双向同步
-     *
-     * @param array $languages
-     */
-    protected function syncBidirectional(array $languages): void
-    {
-        $this->info('🔄 执行双向同步...');
-        $this->line('');
-        
-        $this->warn('⚠️  注意：双向同步将先执行pull，然后建议使用 translation:collect --upload 执行push');
-        $this->line('');
-        
-        // 先执行pull操作
-        $this->pullFromExternal($languages);
-        
-        $this->line('');
-        $this->info('💡 接下来请使用以下命令执行push操作：');
-        foreach ($languages as $language) {
-            $this->line("  php artisan translation:collect --upload --language={$language}");
-        }
-    }
-
-    /**
-     * 加载语言文件
+     * 加载语言文件（按格式）
      *
      * @param string $language
+     * @param string $fileType
      * @return array
      */
-    protected function loadLanguageFile(string $language): array
+    protected function loadLanguageFileByFormat(string $language, string $fileType): array
     {
         $langPath = $this->config['lang_path'];
-        $format = $this->option('format');
 
-        // 优先尝试JSON格式文件（直接在lang目录下）
-		$allData = [];
+        if ($fileType === 'json') {
+            return $this->loadJsonTranslations($language, $langPath);
+        } else {
+            return $this->loadPhpTranslations($language, $langPath);
+        }
+    }
+
+    /**
+     * 加载JSON格式翻译文件
+     *
+     * @param string $language
+     * @param string $langPath
+     * @return array
+     */
+    protected function loadJsonTranslations(string $language, string $langPath): array
+    {
         $jsonFile = "{$langPath}/{$language}.json";
         if (File::exists($jsonFile)) {
             $content = File::get($jsonFile);
-            $jsonData = json_decode($content, true) ?: [];
-			$allData = array_merge($allData, $jsonData);
+            return json_decode($content, true) ?: [];
         }
+        return [];
+    }
 
-        // 如果指定format为php或未找到json文件，扫描语言目录下的php文件
+    /**
+     * 加载PHP格式翻译文件（多文件）
+     *
+     * @param string $language
+     * @param string $langPath
+     * @return array
+     */
+    protected function loadPhpTranslations(string $language, string $langPath): array
+    {
         $languageDir = "{$langPath}/{$language}";
+        $allData = [];
+
         if (File::exists($languageDir) && File::isDirectory($languageDir)) {
             $phpFiles = File::glob("{$languageDir}/*.php");
 
@@ -409,17 +657,46 @@ class SyncTranslationsCommand extends Command
                     $fileData = include $phpFile;
                     if (is_array($fileData)) {
                         $fileName = pathinfo($phpFile, PATHINFO_FILENAME);
-                        // 为PHP文件中的键加上文件名前缀
-                        $flatData = $this->flattenArray($fileData, $fileName);
+                        // 为PHP文件中的键加上文件名前缀，扁平化处理
+                        $flatData = $this->flattenArrayWithPrefix($fileData, $fileName);
                         $allData = array_merge($allData, $flatData);
                     }
                 } catch (\Exception $e) {
                     // 忽略无法加载的文件
+                    $this->warn("无法加载文件 {$phpFile}: {$e->getMessage()}");
                 }
             }
-		}
-		return $allData;
-	}
+        }
+
+        return $allData;
+    }
+
+    /**
+     * 带前缀扁平化数组
+     * 例如：fileName = 'auth', array = ['login' => 'Login']
+     * 结果：['auth.login' => 'Login']
+     *
+     * @param array $array
+     * @param string $prefix
+     * @param string $separator
+     * @return array
+     */
+    protected function flattenArrayWithPrefix(array $array, string $prefix, string $separator = '.'): array
+    {
+        $result = [];
+
+        foreach ($array as $key => $value) {
+            $newKey = $prefix . $separator . $key;
+
+            if (is_array($value)) {
+                $result = array_merge($result, $this->flattenArrayWithPrefix($value, $newKey, $separator));
+            } else {
+                $result[$newKey] = $value;
+            }
+        }
+
+        return $result;
+    }
 
     /**
      * 分析差异
@@ -474,19 +751,6 @@ class SyncTranslationsCommand extends Command
         $this->line("    - 仅外部存在: " . count($differences['external_only']));
         $this->line("    - 值不同: " . count($differences['different_values']));
         $this->line("    - 相同: " . count($differences['common']));
-    }
-
-    /**
-     * 处理差异
-     *
-     * @param string $language
-     * @param array $differences
-     */
-    protected function processDifferences(string $language, array $differences): void
-    {
-        // 这里可以实现具体的差异处理逻辑
-        // 例如：合并、选择性同步等
-        $this->line("  - ✅ {$language} 差异已处理");
     }
 
     /**

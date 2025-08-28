@@ -35,10 +35,10 @@ class ExternalApiClientTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->mockHandler = new MockHandler();
         $handlerStack = HandlerStack::create($this->mockHandler);
-        
+
         $config = [
             'base_url' => 'https://api.test.com',
             'token' => 'test-token',
@@ -57,9 +57,9 @@ class ExternalApiClientTest extends TestCase
                 'sync_translations' => '/api/translations/sync',
             ],
         ];
-        
+
         $this->apiClient = new ExternalApiClient($config);
-        
+
         // 使用反射替换HTTP客户端
         $reflection = new \ReflectionClass($this->apiClient);
         $httpClientProperty = $reflection->getProperty('httpClient');
@@ -163,44 +163,6 @@ class ExternalApiClientTest extends TestCase
     }
 
     /**
-     * 测试成功同步翻译
-     */
-    public function test_can_sync_translations_successfully()
-    {
-        $translations = [
-            ['key' => 'user.title', 'default_text' => 'User Title'],
-        ];
-
-        $responseData = [
-            'success' => true,
-            'message' => 'Translations synced successfully',
-            'synced_count' => 1,
-        ];
-
-        $this->mockHandler->append(new Response(200, [], json_encode($responseData)));
-
-        $result = $this->apiClient->syncTranslations($translations);
-
-        $this->assertEquals($responseData, $result);
-    }
-
-    /**
-     * 测试同步翻译失败
-     */
-    public function test_sync_translations_throws_exception_on_failure()
-    {
-        $this->expectException(ExternalApiException::class);
-
-        $translations = [
-            ['key' => 'test.key', 'default_text' => 'Test'],
-        ];
-
-        $this->mockHandler->append(new RequestException('Sync error', new \GuzzleHttp\Psr7\Request('POST', 'test')));
-
-        $this->apiClient->syncTranslations($translations);
-    }
-
-    /**
      * 测试批量上传成功
      */
     public function test_can_batch_upload_successfully()
@@ -276,39 +238,6 @@ class ExternalApiClientTest extends TestCase
         $result = $this->apiClient->checkConnection();
 
         $this->assertFalse($result);
-    }
-
-    /**
-     * 测试获取支持的语言
-     */
-    public function test_can_get_supported_languages()
-    {
-        $responseData = [
-            'success' => true,
-            'data' => [
-                ['code' => 'en', 'name' => 'English'],
-                ['code' => 'zh_CN', 'name' => '简体中文'],
-            ],
-        ];
-
-        $this->mockHandler->append(new Response(200, [], json_encode($responseData)));
-
-        $result = $this->apiClient->getSupportedLanguages();
-
-        $this->assertEquals($responseData['data'], $result);
-    }
-
-    /**
-     * 测试获取支持的语言失败
-     */
-    public function test_get_supported_languages_returns_empty_on_failure()
-    {
-        $this->mockHandler->append(new RequestException('API error', new \GuzzleHttp\Psr7\Request('GET', 'test')));
-
-        $result = $this->apiClient->getSupportedLanguages();
-
-        $this->assertIsArray($result);
-        $this->assertEmpty($result);
     }
 
     /**

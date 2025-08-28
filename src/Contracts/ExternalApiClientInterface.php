@@ -21,14 +21,6 @@ interface ExternalApiClientInterface
     public function getTranslations(array $options = []): array;
 
     /**
-     * 同步翻译到外部系统
-     *
-     * @param array $translations 翻译数据
-     * @return array
-     */
-    public function syncTranslations(array $translations): array;
-
-    /**
      * 批量上传翻译
      *
      * @param array $translations 翻译数据
@@ -43,13 +35,6 @@ interface ExternalApiClientInterface
      * @return bool
      */
     public function checkConnection(): bool;
-
-    /**
-     * 获取外部系统支持的语言列表
-     *
-     * @return array
-     */
-    public function getSupportedLanguages(): array;
 
     /**
      * 设置API配置

@@ -35,14 +35,14 @@ class CollectTranslationsCommand extends Command
      *
      * @var TranslationCollectorInterface
      */
-    protected $collector;
+    protected TranslationCollectorInterface $collector;
 
     /**
      * 外部API客户端
      *
      * @var ExternalApiClientInterface
      */
-    protected $apiClient;
+    protected ExternalApiClientInterface $apiClient;
 
     /**
      * 构造函数

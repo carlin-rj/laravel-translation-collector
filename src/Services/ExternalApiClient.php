@@ -91,43 +91,16 @@ class ExternalApiClient implements ExternalApiClientInterface
 
             $response = $this->makeRequest('GET', $endpoint, null, $queryParams);
 
-            $this->log('info', '翻译获取成功', ['count' => count($response['data'] ?? [])]);
+            // makeRequest已经处理了标准响应格式，直接返回结果
+            $translations = is_array($response) ? $response : [];
 
-            return $response['data'] ?? [];
+            $this->log('info', '翻译获取成功', ['count' => count($translations)]);
+
+            return $translations;
 
         } catch (\Exception $e) {
             $this->log('error', '翻译获取失败: ' . $e->getMessage());
             throw new ExternalApiException('翻译获取失败: ' . $e->getMessage(), 0, $e);
-        }
-    }
-
-    /**
-     * 同步翻译到外部系统
-     *
-     * @param array $translations 翻译数据
-     * @return array
-     */
-    public function syncTranslations(array $translations): array
-    {
-        try {
-            $this->log('info', '开始同步翻译到外部系统', ['count' => count($translations)]);
-
-            $endpoint = $this->config['endpoints']['sync_translations'];
-            $payload = [
-                'project_id' => $this->config['project_id'],
-                'translations' => $this->formatTranslationsForApi($translations),
-                'sync_mode' => 'merge', // merge, replace, append
-            ];
-
-            $response = $this->makeRequest('POST', $endpoint, $payload);
-
-            $this->log('info', '翻译同步成功', ['response' => $response]);
-
-            return $response;
-
-        } catch (\Exception $e) {
-            $this->log('error', '翻译同步失败: ' . $e->getMessage());
-            throw new ExternalApiException('翻译同步失败: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -183,7 +156,9 @@ class ExternalApiClient implements ExternalApiClientInterface
     {
         try {
             $response = $this->makeRequest('GET', '/api/health');
-            return isset($response['status']) && $response['status'] === 'ok';
+            // 支持多种响应格式
+            return (isset($response['status']) && $response['status'] === 'ok') ||
+                   (is_array($response) && !empty($response));
 
         } catch (\Exception $e) {
             $this->log('warning', 'API连接检查失败: ' . $e->getMessage());
@@ -191,22 +166,6 @@ class ExternalApiClient implements ExternalApiClientInterface
         }
     }
 
-    /**
-     * 获取外部系统支持的语言列表
-     *
-     * @return array
-     */
-    public function getSupportedLanguages(): array
-    {
-        try {
-            $response = $this->makeRequest('GET', '/api/languages');
-            return $response['data'] ?? [];
-
-        } catch (\Exception $e) {
-            $this->log('error', '获取支持的语言列表失败: ' . $e->getMessage());
-            return [];
-        }
-    }
 
     /**
      * 设置API配置
@@ -261,8 +220,26 @@ class ExternalApiClient implements ExternalApiClientInterface
             try {
                 $response = $this->httpClient->request($method, $endpoint, $options);
                 $body = $response->getBody()->getContents();
+                $decodedResponse = json_decode($body, true);
 
-                return json_decode($body, true) ?: [];
+                // 检查JSON解析是否成功
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new ExternalApiException('API返回的数据格式不正确: ' . json_last_error_msg());
+                }
+
+                // 检查是否是标准的API响应格式
+                if (isset($decodedResponse['success'])) {
+                    if ($decodedResponse['success'] === false) {
+                        $errorMessage = $decodedResponse['message'] ?? 'API请求失败';
+                        $errorDetails = $decodedResponse['error'] ?? [];
+                        throw new ExternalApiException($errorMessage . (!empty($errorDetails) ? ': ' . json_encode($errorDetails) : ''));
+                    }
+                    // 返回数据部分，如果没有data字段则返回整个响应
+                    return $decodedResponse['data'] ?? $decodedResponse;
+                }
+
+                // 兼容非标准格式的响应
+                return $decodedResponse ?: [];
 
             } catch (RequestException $e) {
                 $this->log('warning', "API请求失败 (尝试 {$attempt}/{$retryTimes}): " . $e->getMessage());

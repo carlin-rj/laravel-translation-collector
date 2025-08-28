@@ -253,10 +253,6 @@ class TranslationService
 - `{{ __('key') }}`
 - `{{ trans('key') }}`
 
-### JavaScript 文件
-- `__('key')`
-- `trans('key')`
-
 ## 输出格式
 
 ### JSON 格式

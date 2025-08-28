@@ -18,7 +18,7 @@ class CollectTranslationsCommand extends Command
                             {--module=* : 指定要扫描的模块}
                             {--path=* : 指定要扫描的路径}
                             {--dry-run : 仅扫描不上传}
-                            {--format=json : 输出格式 (json, table, csv)}
+                            {--format=table : 输出格式 (json, table, csv)}
                             {--output= : 输出到文件}
                             {--no-cache : 不使用缓存}
                             {--upload : 自动上传到外部系统}';
@@ -71,7 +71,7 @@ class CollectTranslationsCommand extends Command
         try {
             // 设置收集选项
             $options = $this->buildCollectionOptions();
-            
+
             // 执行收集
             $translations = $this->performCollection($options);
 
@@ -130,8 +130,6 @@ class CollectTranslationsCommand extends Command
      */
     protected function performCollection(array $options): array
     {
-        $translations = [];
-
         // 进度条
         $progressBar = $this->output->createProgressBar();
         $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %message%');
@@ -226,12 +224,13 @@ class CollectTranslationsCommand extends Command
             return;
         }
 
-        $headers = ['翻译键', '模块', '文件', '行号'];
+        $headers = ['翻译键', '翻译文本', '模块', '文件', '行号'];
         $rows = [];
 
         foreach (array_slice($translations, 0, 50) as $translation) {
             $rows[] = [
                 $translation['key'],
+				$translation['default_text'] ?? '',
                 $translation['module'] ?? 'N/A',
                 basename($translation['source_file'] ?? ''),
                 $translation['line_number'] ?? 'N/A',
@@ -254,7 +253,7 @@ class CollectTranslationsCommand extends Command
     protected function formatAsCsv(array $translations): string
     {
         $csv = "翻译键,默认文本,模块,文件,行号,上下文\n";
-        
+
         foreach ($translations as $translation) {
             $csv .= sprintf(
                 '"%s","%s","%s","%s","%s","%s"' . "\n",
@@ -279,7 +278,7 @@ class CollectTranslationsCommand extends Command
     protected function saveToFile(string $path, string $content): void
     {
         $directory = dirname($path);
-        
+
         if (!File::exists($directory)) {
             File::makeDirectory($directory, 0755, true);
         }
@@ -311,10 +310,10 @@ class CollectTranslationsCommand extends Command
         try {
             // 获取现有翻译
             $existingTranslations = $this->apiClient->getTranslations();
-            
+
             // 分析差异
             $differences = $this->collector->analyzeDifferences($translations, $existingTranslations);
-            
+
             $newCount = count($differences['new']);
             $updatedCount = count($differences['updated']);
 
@@ -329,7 +328,7 @@ class CollectTranslationsCommand extends Command
             if ($newCount > 0) {
                 $uploadData = array_merge($differences['new'], $differences['updated']);
                 $result = $this->apiClient->batchUpload($uploadData);
-                
+
                 $successCount = count(array_filter($result, fn($r) => $r['success'] ?? true));
                 $this->info("✅ 成功上传 {$successCount} 个翻译");
             }

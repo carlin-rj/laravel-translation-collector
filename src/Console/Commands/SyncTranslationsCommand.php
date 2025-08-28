@@ -227,24 +227,6 @@ class SyncTranslationsCommand extends Command
     }
 
     /**
-     * 构建文件目标标识
-     *
-     * @param array $translation
-     * @param string $language
-     * @param string $fileType
-     * @return string
-     */
-    protected function buildFileTarget(array $translation, string $language, string $fileType): string
-    {
-        if ($fileType === 'json') {
-            return "json:{$language}";
-        } else {
-            $fileName = $this->extractFileNameFromKey($translation['key']);
-            return "php:{$language}:{$fileName}";
-        }
-    }
-
-    /**
      * 构建文件信息
      *
      * @param array $translation
@@ -446,7 +428,7 @@ class SyncTranslationsCommand extends Command
                 $fileData = include $filePath;
                 if (is_array($fileData)) {
                     // 为 PHP 文件中的键加上文件名前缀，扁平化处理
-                    return $this->flattenArrayWithPrefix($fileData, $fileName);
+                    return $this->flattenArray($fileData, $fileName);
                 }
             } catch (\Exception $e) {
                 $this->warn("无法加载文件 {$filePath}: {$e->getMessage()}");
@@ -482,6 +464,7 @@ class SyncTranslationsCommand extends Command
             }
         }
 
+		//php，但是key规则不对
 		if ($translation['file_type'] === 'php' && !$this->extractFileNameFromKey($translation['key'])) {
 			return false;
 		}
@@ -507,36 +490,6 @@ class SyncTranslationsCommand extends Command
         // 合并模式（默认）
 		return array_merge($localTranslations, $externalTranslations);
 	}
-
-    /**
-     * 处理覆盖模式
-     *
-     * @param array $localTranslations
-     * @param array $externalFormatted
-     * @return array
-     */
-    protected function handleOverwriteMode(array $localTranslations, array $externalFormatted): array
-    {
-        // 完全覆盖模式
-        if (!empty($localTranslations)) {
-			return array_merge($localTranslations, $externalFormatted);
-        }
-        return $externalFormatted;
-    }
-
-    /**
-     * 处理合并模式
-     *
-     * @param array $localTranslations
-     * @param array $externalFormatted
-     * @param string $fileType
-     * @return array
-     */
-    protected function handleMergeMode(array $localTranslations, array $externalFormatted, string $fileType): array
-    {
-        // 现在已经是单文件处理，无论 JSON 还是 PHP 都可以直接合并
-        return array_merge($localTranslations, $externalFormatted);
-    }
 
     /**
      * 按文件名分组翻译
@@ -674,7 +627,7 @@ class SyncTranslationsCommand extends Command
                     if (is_array($fileData)) {
                         $fileName = pathinfo($phpFile, PATHINFO_FILENAME);
                         // 为PHP文件中的键加上文件名前缀，扁平化处理
-                        $flatData = $this->flattenArrayWithPrefix($fileData, $fileName);
+                        $flatData = $this->flattenArray($fileData, $fileName);
                         $allData = array_merge($allData, $flatData);
                     }
                 } catch (\Exception $e) {
@@ -697,7 +650,7 @@ class SyncTranslationsCommand extends Command
      * @param string $separator
      * @return array
      */
-    protected function flattenArrayWithPrefix(array $array, string $prefix, string $separator = '.'): array
+    protected function flattenArray(array $array, string $prefix, string $separator = '.'): array
     {
         $result = [];
 
@@ -705,7 +658,7 @@ class SyncTranslationsCommand extends Command
             $newKey = $prefix . $separator . $key;
 
             if (is_array($value)) {
-                $result = array_merge($result, $this->flattenArrayWithPrefix($value, $newKey, $separator));
+                $result = array_merge($result, $this->flattenArray($value, $newKey, $separator));
             } else {
                 $result[$newKey] = $value;
             }
@@ -814,28 +767,4 @@ class SyncTranslationsCommand extends Command
         return $formatted;
     }
 
-    /**
-     * 展平嵌套数组
-     *
-     * @param array $array
-     * @param string $prefix
-     * @param string $separator
-     * @return array
-     */
-    protected function flattenArray(array $array, string $prefix = '', string $separator = '.'): array
-    {
-        $result = [];
-
-        foreach ($array as $key => $value) {
-            $newKey = $prefix === '' ? $key : $prefix . $separator . $key;
-
-            if (is_array($value)) {
-                $result = array_merge($result, $this->flattenArray($value, $newKey, $separator));
-            } else {
-                $result[$newKey] = $value;
-            }
-        }
-
-        return $result;
-    }
 }

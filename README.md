@@ -76,17 +76,14 @@ php artisan translation:collect --output=storage/translations.json
 #### 2. 同步翻译
 
 ```bash
-# 双向同步
+# 同步外部系统到本地
 php artisan translation:sync
 
-# 仅从外部系统拉取
-php artisan translation:sync --direction=pull
+# 同步外部系统到本地 合并模式
+php artisan translation:sync --merge-mode=merge
 
-# 仅推送到外部系统
-php artisan translation:sync --direction=push
-
-# 指定语言同步
-php artisan translation:sync --language=zh_CN,en
+# 同步外部系统到本地 覆盖模式
+php artisan translation:sync --merge-mode=overwrite
 
 # 预览同步差异
 php artisan translation:sync --dry-run
@@ -106,9 +103,6 @@ php artisan translation:init --dry-run
 
 # 强制执行（跳过确认）
 php artisan translation:init --force
-
-# 指定批量大小
-php artisan translation:init --batch-size=50
 ```
 
 #### 4. 生成报告

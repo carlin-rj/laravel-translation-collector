@@ -5,6 +5,7 @@ namespace Carlin\LaravelTranslationCollector\Tests\Unit;
 use Carlin\LaravelTranslationCollector\Tests\TestCase;
 use Carlin\LaravelTranslationCollector\Services\TranslationCollectorService;
 use Carlin\LaravelTranslationCollector\Contracts\TranslationCollectorInterface;
+use Illuminate\Support\Facades\File;
 
 class TranslationCollectorServiceTest extends TestCase
 {
@@ -241,6 +242,102 @@ class TranslationCollectorServiceTest extends TestCase
         $translations = $this->collector->collect($options);
 
         $this->assertIsArray($translations);
+    }
+
+    /**
+     * 测试扫描现有翻译文件
+     */
+    public function test_can_scan_existing_translations()
+    {
+        $tempDir = $this->getTempDirectory();
+        
+        // 设置语言文件路径
+        config([
+            'translation-collector.lang_path' => $tempDir . '/lang',
+            'translation-collector.supported_languages' => ['en' => 'English', 'zh' => '中文'],
+        ]);
+
+        $translations = $this->collector->scanExistingTranslations();
+
+        $this->assertIsArray($translations);
+        
+        if (!empty($translations)) {
+            foreach ($translations as $translation) {
+                $this->assertValidTranslationStructure($translation);
+                $this->assertEquals('translation_file', $translation['source_type']);
+            }
+        }
+    }
+
+    /**
+     * 测试扫描指定语言的现有翻译文件
+     */
+    public function test_can_scan_existing_translations_for_specific_language()
+    {
+        $tempDir = $this->getTempDirectory();
+        
+        config([
+            'translation-collector.lang_path' => $tempDir . '/lang',
+            'translation-collector.supported_languages' => ['en' => 'English', 'zh' => '中文'],
+        ]);
+
+        $translations = $this->collector->scanExistingTranslations('en');
+
+        $this->assertIsArray($translations);
+        
+        if (!empty($translations)) {
+            foreach ($translations as $translation) {
+                $this->assertEquals('en', $translation['language']);
+            }
+        }
+    }
+
+    /**
+     * 测试扫描多个指定语言的现有翻译文件
+     */
+    public function test_can_scan_existing_translations_for_multiple_languages()
+    {
+        $tempDir = $this->getTempDirectory();
+        
+        config([
+            'translation-collector.lang_path' => $tempDir . '/lang',
+            'translation-collector.supported_languages' => ['en' => 'English', 'zh' => '中文'],
+        ]);
+
+        $translations = $this->collector->scanExistingTranslations(['en', 'zh']);
+
+        $this->assertIsArray($translations);
+    }
+
+    /**
+     * 测试扫描不存在的语言文件路径
+     */
+    public function test_scan_existing_translations_with_nonexistent_path()
+    {
+        // 保存当前配置
+        $originalLangPath = config('translation-collector.lang_path');
+        $originalSupportedLanguages = config('translation-collector.supported_languages');
+        
+        try {
+            // 设置不存在的路径
+            config([
+                'translation-collector.lang_path' => '/path/that/does/not/exist',
+                'translation-collector.supported_languages' => ['en' => 'English'],
+            ]);
+
+            // 创建新的收集器实例以使用新配置
+            $collector = new TranslationCollectorService($this->app);
+            $translations = $collector->scanExistingTranslations();
+
+            $this->assertIsArray($translations);
+            $this->assertEmpty($translations);
+        } finally {
+            // 恢复原配置
+            config([
+                'translation-collector.lang_path' => $originalLangPath,
+                'translation-collector.supported_languages' => $originalSupportedLanguages,
+            ]);
+        }
     }
 
 }

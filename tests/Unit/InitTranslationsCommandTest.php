@@ -187,9 +187,20 @@ class InitTranslationsCommandTest extends TestCase
         }
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        
+        // 每种语言返50条数据，总共150条
         $this->mockCollector->shouldReceive('scanExistingTranslations')
-            ->times(3)
-            ->andReturn($translations);
+            ->with('en')
+            ->once()
+            ->andReturn(array_slice($translations, 0, 50));
+        $this->mockCollector->shouldReceive('scanExistingTranslations')
+            ->with('zh_CN')
+            ->once()
+            ->andReturn(array_slice($translations, 50, 50));
+        $this->mockCollector->shouldReceive('scanExistingTranslations')
+            ->with('fr')
+            ->once()
+            ->andReturn(array_slice($translations, 100, 50));
         
         // 应该分批调用API (150条数据，批量大小50，应该调用3次)
         $this->mockApiClient->shouldReceive('initTranslations')
@@ -249,15 +260,25 @@ class InitTranslationsCommandTest extends TestCase
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
         $this->mockCollector->shouldReceive('scanExistingTranslations')
-            ->times(3)
+            ->with('en')
+            ->once()
             ->andReturn($translations);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')
+            ->with('zh_CN')
+            ->once()
+            ->andReturn([]);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')
+            ->with('fr')
+            ->once()
+            ->andReturn([]);
         $this->mockApiClient->shouldReceive('initTranslations')
             ->once()
             ->andThrow(new \Exception('API异常'));
 
         $this->artisan('translation:init', ['--force' => true])
-            ->assertExitCode(1)
-            ->expectsOutput('❌ 翻译初始化失败: API异常');
+            ->assertExitCode(0)
+            ->expectsOutput('    ❌ 批次 1 上传失败: API异常')
+            ->expectsOutput('✅ 翻译初始化完成!');
     }
 
     /**
@@ -265,7 +286,7 @@ class InitTranslationsCommandTest extends TestCase
      */
     public function test_statistics_display()
     {
-        $translations = [
+        $enTranslations = [
             [
                 'key' => 'test.json',
                 'default_text' => 'JSON Test',
@@ -275,6 +296,9 @@ class InitTranslationsCommandTest extends TestCase
                 'source_file' => '/lang/en.json',
                 'created_at' => '2025-08-27T10:00:00Z',
             ],
+        ];
+        
+        $zhTranslations = [
             [
                 'key' => 'test.php',
                 'default_text' => 'PHP Test',
@@ -288,8 +312,17 @@ class InitTranslationsCommandTest extends TestCase
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
         $this->mockCollector->shouldReceive('scanExistingTranslations')
-            ->times(3)
-            ->andReturn($translations);
+            ->with('en')
+            ->once()
+            ->andReturn($enTranslations);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')
+            ->with('zh_CN')
+            ->once()
+            ->andReturn($zhTranslations);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')
+            ->with('fr')
+            ->once()
+            ->andReturn([]);
         $this->mockApiClient->shouldReceive('initTranslations')
             ->once()
             ->andReturn(['success' => true]);

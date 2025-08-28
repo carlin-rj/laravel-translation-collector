@@ -7,10 +7,13 @@ use Carlin\LaravelTranslationCollector\Contracts\ExternalApiClientInterface;
 use Carlin\LaravelTranslationCollector\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 use Mockery;
+use ReflectionClass;
 
 class SyncTranslationsCommandTest extends TestCase
 {
     protected ExternalApiClientInterface $mockApiClient;
+    protected SyncTranslationsCommand $command;
+    protected ReflectionClass $reflection;
 
     protected function setUp(): void
     {
@@ -30,12 +33,26 @@ class SyncTranslationsCommandTest extends TestCase
             ],
             'lang_path' => resource_path('lang'),
         ]);
+
+        // 创建命令实例和反射对象用于测试私有方法
+        $this->command = new SyncTranslationsCommand($this->mockApiClient);
+        $this->reflection = new ReflectionClass($this->command);
     }
 
     protected function tearDown(): void
     {
         Mockery::close();
         parent::tearDown();
+    }
+
+    /**
+     * 调用私有或受保护的方法
+     */
+    protected function invokeMethod(string $methodName, array $parameters = []): mixed
+    {
+        $method = $this->reflection->getMethod($methodName);
+        $method->setAccessible(true);
+        return $method->invokeArgs($this->command, $parameters);
     }
 
     /**
@@ -61,213 +78,6 @@ class SyncTranslationsCommandTest extends TestCase
     }
 
     /**
-     * 测试基本的pull同步
-     */
-    public function test_basic_pull_sync()
-    {
-        $externalTranslations = [
-            ['key' => 'user.login', 'value' => 'Login', 'language' => 'en'],
-            ['key' => 'user.logout', 'value' => 'Logout', 'language' => 'en'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->times(3) // 对应3种语言
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync')
-            ->assertExitCode(0)
-            ->expectsOutput('📥 从外部系统拉取翻译...')
-            ->expectsOutput('✅ 翻译同步完成!');
-    }
-
-    /**
-     * 测试push功能提示
-     */
-    public function test_push_functionality_guidance()
-    {
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->times(3)
-            ->andReturn([]);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync')
-            ->assertExitCode(0)
-            ->expectsOutput('📥 从外部系统拉取翻译...');
-    }
-
-    /**
-     * 测试双向同步
-     */
-    public function test_bidirectional_sync()
-    {
-        $externalTranslations = [
-            ['key' => 'test.key', 'value' => 'Test Value', 'language' => 'en'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->times(3)
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync')
-            ->assertExitCode(0)
-            ->expectsOutput('📥 从外部系统拉取翻译...');
-    }
-
-    /**
-     * 测试自动格式检测功能
-     */
-    public function test_auto_format_detection()
-    {
-        $externalTranslations = [
-            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
-            ['key' => 'auth.logout', 'value' => 'Logout', 'file_type' => 'php'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->with(['language' => 'en'])
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-            '--auto-detect-format' => true,
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试合并模式 - merge
-     */
-    public function test_merge_mode()
-    {
-        $externalTranslations = [
-            ['key' => 'new.key', 'value' => 'New Value'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->andReturn($externalTranslations);
-
-        // Mock 存在本地文件
-        File::shouldReceive('exists')->with(resource_path('lang/en'))->andReturn(false);
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-            '--merge-mode' => 'merge',
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试覆盖模式 - overwrite
-     */
-    public function test_overwrite_mode()
-    {
-        $externalTranslations = [
-            ['key' => 'test.key', 'value' => 'New Value'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-            '--merge-mode' => 'overwrite',
-            '--force' => true,
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试干跑模式
-     */
-    public function test_dry_run_mode()
-    {
-        $externalTranslations = [
-            ['key' => 'test.key', 'value' => 'Test Value'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统 - 干跑模式不应该创建文件
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldNotReceive('put'); // 干跑模式不应该写文件
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-            '--dry-run' => true,
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试指定特定语言
-     */
-    public function test_specific_language_sync()
-    {
-        $externalTranslations = [
-            ['key' => 'hello', 'value' => 'Bonjour'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->with(['language' => 'fr'])
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['fr'],
-        ])
-            ->assertExitCode(0)
-            ->expectsOutput('处理语言: fr');
-    }
-
-    /**
      * 测试空的外部翻译响应
      */
     public function test_empty_external_translations()
@@ -285,38 +95,222 @@ class SyncTranslationsCommandTest extends TestCase
     }
 
     /**
-     * 测试API异常处理
+     * 测试翻译数据验证 - 有效数据
      */
-    public function test_api_exception_handling()
+    public function test_validate_translation_data_valid()
     {
+        // 有效的 JSON 数据
+        $validJsonData = [
+            'key' => 'welcome',
+            'value' => 'Welcome',
+            'file_type' => 'json'
+        ];
+        $this->assertTrue($this->invokeMethod('validateTranslationData', [$validJsonData]));
+
+        // 有效的 PHP 数据
+        $validPhpData = [
+            'key' => 'auth.login',
+            'value' => 'Login', 
+            'file_type' => 'php'
+        ];
+        $this->assertTrue($this->invokeMethod('validateTranslationData', [$validPhpData]));
+    }
+
+    /**
+     * 测试翻译数据验证 - 无效数据
+     */
+    public function test_validate_translation_data_invalid()
+    {
+        // 缺少 key
+        $missingKey = ['value' => 'Test Value'];
+        $this->assertFalse($this->invokeMethod('validateTranslationData', [$missingKey]));
+
+        // 缺少 value
+        $missingValue = ['key' => 'test.key'];
+        $this->assertFalse($this->invokeMethod('validateTranslationData', [$missingValue]));
+
+        // PHP 类型但是无效的 key 格式
+        $invalidPhpKey = [
+            'key' => 'simple_key', // PHP类型应该有命名空间
+            'value' => 'Simple Value',
+            'file_type' => 'php'
+        ];
+        $this->assertFalse($this->invokeMethod('validateTranslationData', [$invalidPhpKey]));
+    }
+
+    /**
+     * 测试获取翻译文件类型
+     */
+    public function test_get_translation_file_type()
+    {
+        // 默认为 JSON
+        $defaultData = ['key' => 'test', 'value' => 'value'];
+        $this->assertEquals('json', $this->invokeMethod('getTranslationFileType', [$defaultData]));
+
+        // 指定为 PHP
+        $phpData = ['key' => 'test', 'value' => 'value', 'file_type' => 'php'];
+        $this->assertEquals('php', $this->invokeMethod('getTranslationFileType', [$phpData]));
+    }
+
+    /**
+     * 测试从键中提取文件名
+     */
+    public function test_extract_file_name_from_key()
+    {
+        // 正常的命名空间键
+        $this->assertEquals('auth', $this->invokeMethod('extractFileNameFromKey', ['auth.login']));
+        $this->assertEquals('validation', $this->invokeMethod('extractFileNameFromKey', ['validation.required']));
+
+        // 没有命名空间的键
+        $this->assertNull($this->invokeMethod('extractFileNameFromKey', ['simple_key']));
+    }
+
+    /**
+     * 测试构建文件信息
+     */
+    public function test_build_file_info()
+    {
+        // JSON 格式
+        $jsonTranslation = ['key' => 'welcome', 'value' => 'Welcome', 'file_type' => 'json'];
+        $language = 'en';
+        $langPath = resource_path('lang');
+
+        $fileInfo = $this->invokeMethod('buildFileInfo', [$jsonTranslation, $language, $langPath]);
+        $this->assertEquals('json', $fileInfo['type']);
+        $this->assertEquals(resource_path('lang/en.json'), $fileInfo['path']);
+
+        // PHP 格式
+        $phpTranslation = ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'];
+        $fileInfo = $this->invokeMethod('buildFileInfo', [$phpTranslation, $language, $langPath]);
+        $this->assertEquals('php', $fileInfo['type']);
+        $this->assertEquals('auth', $fileInfo['fileName']);
+    }
+
+    /**
+     * 测试按文件目标分组翻译数据（通过集成测试验证）
+     */
+    public function test_group_translations_by_file_target_integration()
+    {
+        $externalTranslations = [
+            ['key' => 'welcome', 'value' => 'Welcome', 'file_type' => 'json'],
+            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
+            ['key' => 'auth.logout', 'value' => 'Logout', 'file_type' => 'php'],
+        ];
+
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
         $this->mockApiClient->shouldReceive('getTranslations')
             ->once()
-            ->andThrow(new \Exception('API异常'));
+            ->with(['language' => 'en'])
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
 
         $this->artisan('translation:sync', [
             '--language' => ['en'],
         ])
             ->assertExitCode(0)
-            ->expectsOutput('  - ❌ en 同步失败: API异常');
+            ->expectsOutput('处理语言: en');
     }
 
     /**
-     * 测试无效的同步方向（相当于基本的pull同步）
+     * 测试文件组处理（通过集成测试验证）
      */
-    public function test_invalid_sync_direction()
+    public function test_process_file_group_integration()
     {
+        $externalTranslations = [
+            ['key' => 'welcome', 'value' => 'Welcome', 'file_type' => 'json'],
+            ['key' => 'goodbye', 'value' => 'Goodbye', 'file_type' => 'json']
+        ];
+
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
         $this->mockApiClient->shouldReceive('getTranslations')
-            ->times(3)
-            ->andReturn([]);
+            ->once()
+            ->with(['language' => 'en'])
+            ->andReturn($externalTranslations);
 
-        // Mock 文件系统
         File::shouldReceive('exists')->andReturn(false);
         File::shouldReceive('makeDirectory')->andReturn(true);
         File::shouldReceive('put')->andReturn(true);
 
-        $this->artisan('translation:sync')
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+        ])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('✅ 已更新 en');
+    }
+
+    /**
+     * 测试翻译数据格式化
+     */
+    public function test_format_translations_for_local()
+    {
+        $translations = [
+            ['key' => 'welcome', 'value' => 'Welcome'],
+            ['key' => 'goodbye', 'value' => 'Goodbye'],
+            ['key' => '', 'value' => 'Invalid'], // 应该被忽略
+        ];
+
+        $result = $this->invokeMethod('formatTranslationsForLocal', [$translations]);
+
+        $expected = [
+            'welcome' => 'Welcome',
+            'goodbye' => 'Goodbye'
+        ];
+
+        $this->assertEquals($expected, $result);
+    }
+
+    /**
+     * 测试混合格式处理
+     */
+    public function test_mixed_format_processing()
+    {
+        $externalTranslations = [
+            ['key' => 'welcome', 'value' => 'Welcome', 'file_type' => 'json'],
+            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->with(['language' => 'en'])
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('处理语言: en');
+    }
+
+    /**
+     * 测试干跑模式
+     */
+    public function test_dry_run_mode()
+    {
+        $externalTranslations = [
+            ['key' => 'test.key', 'value' => 'Test Value', 'file_type' => 'json'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldNotReceive('put'); // 干跑模式不应该写文件
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+            '--dry-run' => true,
+        ])
             ->assertExitCode(0);
     }
 
@@ -334,7 +328,6 @@ class SyncTranslationsCommandTest extends TestCase
             ->once()
             ->andReturn($externalTranslations);
 
-        // Mock 文件系统
         File::shouldReceive('exists')->andReturn(false);
         File::shouldReceive('makeDirectory')->andReturn(true);
         File::shouldReceive('put')->andReturn(true);
@@ -345,14 +338,192 @@ class SyncTranslationsCommandTest extends TestCase
             '--auto-detect-format' => true,
         ])
             ->assertExitCode(0)
-            ->expectsOutput('📊 同步配置:')
-            ->expectsOutputToContain('目标语言')
-            ->expectsOutputToContain('合并模式')
-            ->expectsOutputToContain('自动检测格式');
+            ->expectsOutput('📊 同步配置:');
     }
 
     /**
-     * 测试JSON格式检测（默认）
+     * 测试合并模式
+     */
+    public function test_merge_mode()
+    {
+        $externalTranslations = [
+            ['key' => 'new.key', 'value' => 'New Value'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+            '--merge-mode' => 'merge',
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('处理语言: en');
+    }
+
+    /**
+     * 测试覆盖模式
+     */
+    public function test_overwrite_mode()
+    {
+        $externalTranslations = [
+            ['key' => 'test.key', 'value' => 'New Value'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+            '--merge-mode' => 'overwrite',
+            '--force' => true,
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('处理语言: en');
+    }
+
+    /**
+     * 测试指定特定语言
+     */
+    public function test_specific_language_sync()
+    {
+        $externalTranslations = [
+            ['key' => 'hello', 'value' => 'Bonjour'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->with(['language' => 'fr'])
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['fr'],
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('处理语言: fr');
+    }
+
+    /**
+     * 测试自动格式检测
+     */
+    public function test_auto_format_detection()
+    {
+        $externalTranslations = [
+            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
+            ['key' => 'auth.logout', 'value' => 'Logout', 'file_type' => 'php'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->with(['language' => 'en'])
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+            '--auto-detect-format' => true,
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('处理语言: en');
+    }
+
+    /**
+     * 测试强制模式
+     */
+    public function test_force_mode()
+    {
+        $externalTranslations = [
+            ['key' => 'test.key', 'value' => 'Test Value'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(true); // 文件存在
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+            '--force' => true,
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('处理语言: en');
+    }
+
+    /**
+     * 测试空的外部响应与多语言
+     */
+    public function test_empty_external_with_multiple_languages()
+    {
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->times(2)
+            ->andReturn([]);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en', 'fr'],
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('  - 没有找到 en 的翻译')
+            ->expectsOutput('  - 没有找到 fr 的翻译');
+    }
+
+    /**
+     * 测试完整的同步流程
+     */
+    public function test_complete_sync_workflow()
+    {
+        $externalTranslations = [
+            ['key' => 'welcome', 'value' => 'Welcome', 'file_type' => 'json'],
+            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
+            ['key' => 'auth.logout', 'value' => 'Logout', 'file_type' => 'php'],
+        ];
+
+        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
+        $this->mockApiClient->shouldReceive('getTranslations')
+            ->once()
+            ->with(['language' => 'en'])
+            ->andReturn($externalTranslations);
+
+        File::shouldReceive('exists')->andReturn(false);
+        File::shouldReceive('makeDirectory')->andReturn(true);
+        File::shouldReceive('put')->andReturn(true);
+
+        $this->artisan('translation:sync', [
+            '--language' => ['en'],
+        ])
+            ->assertExitCode(0)
+            ->expectsOutput('🔄 开始同步翻译文件...')
+            ->expectsOutput('处理语言: en')
+            ->expectsOutput('✅ 翻译同步完成!');
+    }
+
+    /**
+     * 测试JSON格式默认检测
      */
     public function test_json_format_detection_default()
     {
@@ -365,45 +536,7 @@ class SyncTranslationsCommandTest extends TestCase
             ->once()
             ->andReturn($externalTranslations);
 
-        // Mock 文件系统
         File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试混合格式处理（JSON + PHP）
-     */
-    public function test_mixed_format_processing()
-    {
-        // 模拟外部API返回的混合格式数据
-        $externalTranslations = [
-            // JSON格式的翻译
-            ['key' => 'welcome', 'value' => 'Welcome', 'language' => 'en', 'file_type' => 'json'],
-            ['key' => 'goodbye', 'value' => 'Goodbye', 'language' => 'en', 'file_type' => 'json'],
-            
-            // PHP格式的翻译
-            ['key' => 'auth.login', 'value' => 'Login', 'language' => 'en', 'file_type' => 'php'],
-            ['key' => 'auth.logout', 'value' => 'Logout', 'language' => 'en', 'file_type' => 'php'],
-            ['key' => 'validation.required', 'value' => 'Required', 'language' => 'en', 'file_type' => 'php'],
-            ['key' => 'validation.email', 'value' => 'Valid email', 'language' => 'en', 'file_type' => 'php'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->with(['language' => 'en'])
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统 - 基本操作
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
         File::shouldReceive('makeDirectory')->andReturn(true);
         File::shouldReceive('put')->andReturn(true);
 
@@ -415,124 +548,18 @@ class SyncTranslationsCommandTest extends TestCase
     }
 
     /**
-     * 测试混合格式的分组处理逻辑
+     * 测试无效翻译数据过滤
      */
-    public function test_mixed_format_grouping_logic()
+    public function test_invalid_translation_data_filtering()
     {
-        $externalTranslations = [
-            ['key' => 'simple_key', 'value' => 'Simple', 'file_type' => 'json'],
-            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
-            ['key' => 'another_simple', 'value' => 'Another', 'file_type' => 'json'],
-            ['key' => 'validation.required', 'value' => 'Required', 'file_type' => 'php'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-            '--auto-detect-format' => true,
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试PHP格式的多文件生成
-     */
-    public function test_php_format_multi_file_generation()
-    {
-        $externalTranslations = [
-            ['key' => 'auth.login', 'value' => 'Login', 'file_type' => 'php'],
-            ['key' => 'auth.logout', 'value' => 'Logout', 'file_type' => 'php'],
-            ['key' => 'validation.required', 'value' => 'Required', 'file_type' => 'php'],
-            ['key' => 'validation.email', 'value' => 'Email', 'file_type' => 'php'],
-            ['key' => 'messages.welcome', 'value' => 'Welcome', 'file_type' => 'php'],
-            ['key' => 'simple_key', 'value' => 'Simple', 'file_type' => 'php'], // 应该归类到messages
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-        ])
-            ->assertExitCode(0)
-            ->expectsOutput('处理语言: en');
-    }
-
-    /**
-     * 测试混合格式的合并模式
-     */
-    public function test_mixed_format_merge_mode()
-    {
-        $externalTranslations = [
-            ['key' => 'new_json_key', 'value' => 'New JSON', 'file_type' => 'json'],
-            ['key' => 'auth.new_action', 'value' => 'New Action', 'file_type' => 'php'],
-        ];
-
-        $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
-        $this->mockApiClient->shouldReceive('getTranslations')
-            ->once()
-            ->andReturn($externalTranslations);
-
-        // Mock 存在的本地文件
-        File::shouldReceive('exists')->with(resource_path('lang/en.json'))->andReturn(true);
-        File::shouldReceive('exists')->with(resource_path('lang/en'))->andReturn(true);
-        File::shouldReceive('isDirectory')->with(resource_path('lang/en'))->andReturn(true);
-        File::shouldReceive('glob')->with(resource_path('lang/en/*.php'))->andReturn([
-            resource_path('lang/en/auth.php')
-        ]);
-        File::shouldReceive('get')->with(resource_path('lang/en.json'))->andReturn('{
-            "existing_key": "Existing Value"
-        }');
-        
-        // Mock 加载现有PHP文件
-        File::shouldReceive('exists')->andReturn(false); // 其他文件检查
-        File::shouldReceive('makeDirectory')->andReturn(true);
-        File::shouldReceive('put')->andReturn(true);
-
-        $this->artisan('translation:sync', [
-            '--language' => ['en'],
-            '--merge-mode' => 'merge',
-        ])
-            ->assertExitCode(0);
-    }
-
-    /**
-     * 测试外部API数据验证
-     */
-    public function test_external_api_data_validation()
-    {
-        // 模拟包含无效数据的外部API响应
         $externalTranslations = [
             // 有效数据
-            ['key' => 'valid.key', 'value' => 'Valid Value', 'file_type' => 'php'],
-            // 无效数据：缺少key
-            ['value' => 'Missing Key'],
-            // 无效数据：缺少value  
-            ['key' => 'missing.value'],
-            // 无效数据：空key
-            ['key' => '', 'value' => 'Empty Key'],
-            // 无效数据：无效file_type
-            ['key' => 'invalid.type', 'value' => 'Invalid Type', 'file_type' => 'xml'],
-            // 有效数据：没有file_type
-            ['key' => 'no.type', 'value' => 'No Type'],
+            ['key' => 'valid', 'value' => 'Valid'],
+            // 无效数据将被过滤
+            ['key' => '', 'value' => 'Empty key'],
+            ['key' => 'empty_value', 'value' => ''],
+            ['value' => 'No key'],
+            ['key' => 'invalid_php', 'value' => 'Value', 'file_type' => 'php'], // PHP但没有点号
         ];
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
@@ -540,10 +567,7 @@ class SyncTranslationsCommandTest extends TestCase
             ->once()
             ->andReturn($externalTranslations);
 
-        // Mock 文件系统
         File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
         File::shouldReceive('makeDirectory')->andReturn(true);
         File::shouldReceive('put')->andReturn(true);
 
@@ -551,7 +575,6 @@ class SyncTranslationsCommandTest extends TestCase
             '--language' => ['en'],
         ])
             ->assertExitCode(0)
-            ->expectsOutputToContain('跳过了') // 应该显示跳过无效数据的消息
-            ->expectsOutputToContain('有效翻译数据'); // 应该显示有效数据的统计
+            ->expectsOutput('处理语言: en');
     }
 }

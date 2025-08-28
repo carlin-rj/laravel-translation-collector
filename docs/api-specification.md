@@ -67,13 +67,12 @@ Accept: application/json
 }
 ```
 
-### 2.3 获取翻译列表 GET /api/translations/list
+### 2.3 获取翻译 GET /api/translations/get_translations
 **请求参数**:
-```
-project_id: string (required)
-language: string (optional)
-page: int (optional, default: 1)
-per_page: int (optional, default: 100)
+```json
+{
+  "project_id": "project_123"
+}
 ```
 **响应**:
 ```json
@@ -84,7 +83,7 @@ per_page: int (optional, default: 100)
     {
       "key": "user.login",
       "default_text": "Login",
-      "value": "login",
+      "value": "Login",
       "module": "User",
       "language": "en",
       "file_type": "php",
@@ -112,7 +111,7 @@ per_page: int (optional, default: 100)
     {
       "key": "user.login",
       "default_text": "Login",
-      "value": "login",
+      "value": "Login",
       "language": "en",
       "module": "User",
       "metadata": {

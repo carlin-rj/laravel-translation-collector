@@ -216,7 +216,7 @@ class TranslationService
     
     'endpoints' => [
         'add_translation' => '/api/translations/add',
-        'get_translations' => '/api/translations/list',
+        'get_translations' => '/api/translations/get_translations',
         'sync_translations' => '/api/translations/sync',
         'init_translations' => '/api/translations/init',
     ],

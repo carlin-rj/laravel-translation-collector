@@ -92,7 +92,7 @@ class ExternalApiClient implements ExternalApiClientInterface
             $response = $this->makeRequest('GET', $endpoint, null, $queryParams);
 
             // makeRequest已经处理了标准响应格式，直接返回结果
-            $translations = is_array($response) ? $response : [];
+            $translations = $response['data'] ?? [];
 
             $this->log('info', '翻译获取成功', ['count' => count($translations)]);
 

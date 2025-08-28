@@ -46,6 +46,11 @@ class ExternalApiClientTest extends TestCase
             'timeout' => 30,
             'retry_times' => 2,
             'retry_sleep' => 10,
+            'supported_languages' => [
+                'en' => 'English',
+                'zh' => '中文',
+                'fr' => 'Français',
+            ],
             'endpoints' => [
                 'add_translation' => '/api/translations/add',
                 'get_translations' => '/api/translations/list',

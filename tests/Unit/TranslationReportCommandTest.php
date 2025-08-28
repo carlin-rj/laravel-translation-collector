@@ -87,15 +87,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.5,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'user.login.success',
+                'default_text' => 'Login successful',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report')
             ->assertExitCode(0)
@@ -126,15 +132,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'app.title',
+                'default_text' => 'Application Title',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--format' => 'json'])
             ->assertExitCode(0)
@@ -164,15 +176,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--format' => 'csv'])
             ->assertExitCode(0);
@@ -201,15 +219,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--format' => 'html'])
             ->assertExitCode(0);
@@ -245,15 +269,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.2,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'user.login',
+                'default_text' => 'Login',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--include-statistics' => true])
             ->assertExitCode(0)
@@ -283,18 +313,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'other.key',
+                'default_text' => 'Other translation',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统 - 模拟存在一些本地翻译但缺少收集到的键
-        File::shouldReceive('exists')->with(resource_path('lang/en'))->andReturn(true);
-        File::shouldReceive('exists')->with(resource_path('lang/zh'))->andReturn(true);
-        File::shouldReceive('exists')->with(resource_path('lang/fr'))->andReturn(true);
-        File::shouldReceive('exists')->andReturn(false); // 其他路径返回false
-        File::shouldReceive('isDirectory')->andReturn(true);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--include-missing' => true])
             ->assertExitCode(0);
@@ -323,15 +356,28 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'used.key',
+                'default_text' => 'Used translation',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+            [
+                'key' => 'unused.key',
+                'default_text' => 'Unused translation',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--include-unused' => true])
             ->assertExitCode(0);
@@ -360,16 +406,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统 - 只检查指定的语言
-        File::shouldReceive('exists')->with(resource_path('lang/en'))->andReturn(false);
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', ['--language' => ['en']])
             ->assertExitCode(0);
@@ -398,16 +449,24 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
 
         // Mock 文件系统 - 模拟文件保存
         File::shouldReceive('exists')->with('/tmp/reports')->andReturn(false);
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
         File::shouldReceive('makeDirectory')->with('/tmp/reports', 0755, true)->once();
         File::shouldReceive('put')->with('/tmp/reports/translation-report.json', Mockery::type('string'))->once();
 
@@ -444,16 +503,22 @@ class TranslationReportCommandTest extends TestCase
             ['key' => 'another.key', 'value' => 'Another Translation'],
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
         $this->mockApiClient->shouldReceive('getTranslations')->once()->andReturn($externalTranslations);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report')
             ->assertExitCode(0)
@@ -483,16 +548,22 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.1,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'test.key',
+                'default_text' => 'Test',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(true);
         $this->mockApiClient->shouldReceive('getTranslations')->once()->andThrow(new \Exception('API Error'));
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report')
             ->assertExitCode(0)
@@ -525,15 +596,13 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.0,
         ];
 
+        $existingTranslations = [];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report')
             ->assertExitCode(0);
@@ -569,15 +638,21 @@ class TranslationReportCommandTest extends TestCase
             'scan_duration' => 0.8,
         ];
 
+        $existingTranslations = [
+            [
+                'key' => 'user.login.success',
+                'default_text' => 'Login successful',
+                'language' => 'en',
+                'source_file' => '/lang/en.json',
+                'file_type' => 'json',
+            ],
+        ];
+
         $this->mockCollector->shouldReceive('collect')->once()->andReturn($expectedTranslations);
         $this->mockCollector->shouldReceive('getStatistics')->once()->andReturn($expectedStats);
+        $this->mockCollector->shouldReceive('scanExistingTranslations')->once()->andReturn($existingTranslations);
 
         $this->mockApiClient->shouldReceive('checkConnection')->once()->andReturn(false);
-
-        // Mock 文件系统
-        File::shouldReceive('exists')->andReturn(false);
-        File::shouldReceive('isDirectory')->andReturn(false);
-        File::shouldReceive('glob')->andReturn([]);
 
         $this->artisan('translation:report', [
             '--include-statistics' => true,

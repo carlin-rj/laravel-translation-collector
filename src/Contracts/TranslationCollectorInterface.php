@@ -53,4 +53,12 @@ interface TranslationCollectorInterface
      * @return self
      */
     public function setOptions(array $options): self;
+
+    /**
+     * 扫描现有翻译文件
+     *
+     * @param array|string|null $languages 指定语言，为空则扫描所有支持的语言
+     * @return array
+     */
+    public function scanExistingTranslations(array|string|null $languages = null): array;
 }

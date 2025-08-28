@@ -294,7 +294,7 @@ class ExternalApiClient implements ExternalApiClientInterface
         return array_map(function ($translation) {
             return [
                 'key' => $translation['key'],
-                'default_text' => $translation['default_text'] ?? $translation['key'],
+                'default_text' => $translation['default_text'],
                 'source_file' => $translation['source_file'] ?? '',
                 'line_number' => $translation['line_number'] ?? 0,
                 'context' => $translation['context'] ?? '',

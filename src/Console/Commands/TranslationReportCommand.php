@@ -106,9 +106,17 @@ class TranslationReportCommand extends Command
         // 收集项目中的翻译
         $collectedTranslations = $this->collector->collect();
 
-		// 获取本地翻译文件
-		$localTranslations = $this->collector->scanExistingTranslations();
-		
+        // 获取本地翻译文件
+        $existingTranslations = $this->collector->scanExistingTranslations();
+
+        // 将现有翻译按语言分组
+        $localTranslations = [];
+        foreach ($existingTranslations as $translation) {
+            $language = $translation['language'];
+            $key = $translation['key'];
+            $value = $translation['default_text'] ?? '';
+            $localTranslations[$language][$key] = $value;
+        }
 
         // 获取外部系统翻译
         $externalTranslations = [];

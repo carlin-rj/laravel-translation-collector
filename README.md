@@ -21,13 +21,13 @@ Laravel 翻译文本自动收集器扩展包，用于自动收集项目中的翻
 composer require carlin/laravel-translation-collector
 ```
 
-### 3. 发布配置文件
+### 2. 发布配置文件
 
 ```bash
 php artisan vendor:publish --tag=translation-collector-config
 ```
 
-### 4. 配置环境变量
+### 3. 配置环境变量
 
 在 `.env` 文件中添加以下配置：
 

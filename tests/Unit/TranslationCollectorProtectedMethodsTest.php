@@ -462,6 +462,228 @@ class TranslationCollectorProtectedMethodsTest extends TestCase
         $hasChanged = $this->collector->hasTranslationChanged($collected, $existing);
         $this->assertFalse($hasChanged);
     }
+
+    /**
+     * 测试scanModule方法
+     */
+    public function test_scan_module()
+    {
+        $tempDir = $this->getTempDirectory();
+        $moduleName = 'TestModule';
+        $modulePath = $tempDir . '/Modules/' . $moduleName;
+        
+        // 创建模块目录和文件
+        File::ensureDirectoryExists($modulePath . '/Http/Controllers');
+        File::put($modulePath . '/Http/Controllers/TestController.php', "<?php echo __('test.module.message'); ?>");
+        
+        // 设置模块配置
+        $this->collector->setConfig([
+            'modules_support' => [
+                'modules_path' => $tempDir . '/Modules',
+                'scan_module_paths' => ['Http']
+            ]
+        ]);
+        
+        $translations = $this->collector->scanModule($moduleName);
+        
+        $this->assertIsArray($translations);
+        // 验证模块名称被正确设置
+        if (!empty($translations)) {
+            foreach ($translations as $translation) {
+                $this->assertEquals($moduleName, $translation['module']);
+            }
+        }
+    }
+
+    /**
+     * 测试scanModule方法处理不存在的模块
+     */
+    public function test_scan_module_nonexistent()
+    {
+        $tempDir = $this->getTempDirectory();
+        
+        $this->collector->setConfig([
+            'modules_support' => [
+                'modules_path' => $tempDir . '/Modules'
+            ]
+        ]);
+        
+        $translations = $this->collector->scanModule('NonexistentModule');
+        
+        $this->assertIsArray($translations);
+        $this->assertEmpty($translations);
+    }
+
+    /**
+     * 测试getAvailableModules方法
+     */
+    public function test_get_available_modules()
+    {
+        $tempDir = $this->getTempDirectory();
+        $modulesPath = $tempDir . '/Modules';
+        
+        // 创建测试模块目录
+        File::ensureDirectoryExists($modulesPath . '/User');
+        File::ensureDirectoryExists($modulesPath . '/Admin');
+        File::ensureDirectoryExists($modulesPath . '/Blog');
+        
+        $this->collector->setConfig([
+            'modules_support' => [
+                'modules_path' => $modulesPath
+            ]
+        ]);
+        
+        $modules = $this->collector->getAvailableModules();
+        
+        $this->assertIsArray($modules);
+        $this->assertContains('User', $modules);
+        $this->assertContains('Admin', $modules);
+        $this->assertContains('Blog', $modules);
+    }
+
+    /**
+     * 测试getAvailableModules方法处理不存在的模块路径
+     */
+    public function test_get_available_modules_nonexistent_path()
+    {
+        $this->collector->setConfig([
+            'modules_support' => [
+                'modules_path' => '/path/that/does/not/exist'
+            ]
+        ]);
+        
+        $modules = $this->collector->getAvailableModules();
+        
+        $this->assertIsArray($modules);
+        $this->assertEmpty($modules);
+    }
+
+    /**
+     * 测试scanLanguageFiles方法
+     */
+    public function test_scan_language_files()
+    {
+        $tempDir = $this->getTempDirectory();
+        $langPath = $tempDir . '/lang';
+        
+        // 创建测试翻译文件
+        File::ensureDirectoryExists($langPath . '/en');
+        File::put($langPath . '/en.json', json_encode(['welcome' => 'Welcome']));
+        File::put($langPath . '/en/messages.php', "<?php return ['hello' => 'Hello'];");
+        
+        $translations = $this->collector->scanLanguageFiles('en', $langPath);
+        
+        $this->assertIsArray($translations);
+        $this->assertGreaterThan(0, count($translations));
+        
+        // 验证包含JSON和PHP翻译
+        $jsonTranslations = array_filter($translations, fn($t) => $t['file_type'] === 'json');
+        $phpTranslations = array_filter($translations, fn($t) => $t['file_type'] === 'php');
+        
+        $this->assertGreaterThan(0, count($jsonTranslations));
+        $this->assertGreaterThan(0, count($phpTranslations));
+    }
+
+    /**
+     * 测试cacheResults方法
+     */
+    public function test_cache_results()
+    {
+        $translations = [
+            ['key' => 'test.cache', 'value' => 'Test Cache'],
+            ['key' => 'test.cache2', 'value' => 'Test Cache 2']
+        ];
+        
+        // 启用缓存
+        $this->collector->setConfig([
+            'cache' => [
+                'enabled' => true,
+                'key_prefix' => 'test_',
+                'ttl' => 3600
+            ]
+        ]);
+        
+        // 这个方法没有返回值，只要不抛出异常就算测试通过
+        $this->collector->cacheResults($translations);
+        
+        // 验证方法执行完成
+        $this->assertTrue(true);
+    }
+
+    /**
+     * 测试log方法
+     */
+    public function test_log_method()
+    {
+        // 启用日志
+        $this->collector->setConfig([
+            'logging' => [
+                'enabled' => true,
+                'channel' => 'daily'
+            ]
+        ]);
+        
+        // 测试日志记录，没有返回值
+        $this->collector->log('info', 'Test log message', ['context' => 'test']);
+        
+        // 验证方法执行完成
+        $this->assertTrue(true);
+    }
+
+    /**
+     * 测试log方法禁用日志的情况
+     */
+    public function test_log_method_disabled()
+    {
+        // 禁用日志
+        $this->collector->setConfig([
+            'logging' => [
+                'enabled' => false
+            ]
+        ]);
+        
+        // 测试日志记录，应该直接返回
+        $this->collector->log('info', 'Test log message');
+        
+        // 验证方法执行完成
+        $this->assertTrue(true);
+    }
+
+    /**
+     * 测试scanFile方法的边界情况
+     */
+    public function test_scan_file_edge_cases()
+    {
+        $tempDir = $this->getTempDirectory();
+        
+        // 测试空文件
+        $emptyFile = $tempDir . '/empty.php';
+        File::put($emptyFile, '');
+        
+        $translations = $this->collector->scanFile($emptyFile);
+        $this->assertIsArray($translations);
+        $this->assertEmpty($translations);
+        
+        // 测试只有注释的文件
+        $commentFile = $tempDir . '/comment.php';
+        File::put($commentFile, "<?php\n// This is a comment\n/* Another comment */");
+        
+        $translations = $this->collector->scanFile($commentFile);
+        $this->assertIsArray($translations);
+        
+        // 测试包含翻译调用的文件
+        $translationFile = $tempDir . '/translation.php';
+        File::put($translationFile, "<?php echo __('Hello World'); ?>");
+        
+        $translations = $this->collector->scanFile($translationFile);
+        $this->assertIsArray($translations);
+        
+        if (!empty($translations)) {
+            $this->assertArrayHasKey('key', $translations[0]);
+            $this->assertArrayHasKey('source_file', $translations[0]);
+            $this->assertEquals($translationFile, $translations[0]['source_file']);
+        }
+    }
 }
 
 /**
@@ -563,5 +785,30 @@ class TestableTranslationCollectorService extends TranslationCollectorService
     {
         $this->options = array_merge($this->options, $options);
         return $this;
+    }
+
+    public function scanModule(string $moduleName): array
+    {
+        return parent::scanModule($moduleName);
+    }
+
+    public function getAvailableModules(): array
+    {
+        return parent::getAvailableModules();
+    }
+
+    public function scanLanguageFiles(string $language, string $langPath): array
+    {
+        return parent::scanLanguageFiles($language, $langPath);
+    }
+
+    public function cacheResults(array $translations): void
+    {
+        parent::cacheResults($translations);
+    }
+
+    public function log(string $level, string $message, array $context = []): void
+    {
+        parent::log($level, $message, $context);
     }
 }

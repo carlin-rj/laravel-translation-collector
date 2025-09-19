@@ -178,7 +178,7 @@ class InitTranslationsCommand extends Command
             $this->line("  - 扫描语言: {$language}");
             
             $languageTranslations = $this->collector->scanExistingTranslations($language);
-            $translations = array_merge($translations, $languageTranslations);
+            $translations = [...$translations, ...$languageTranslations];
         }
 
         return $translations;

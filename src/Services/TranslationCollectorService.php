@@ -79,7 +79,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
             // 处理模块化架构
             if ($this->config['modules_support']['enabled']) {
                 $moduleTranslations = $this->scanModules();
-                $translations = array_merge($translations, $moduleTranslations);
+                $translations = [...$translations, ...$moduleTranslations];
             }
 
             // 去重和标准化
@@ -132,7 +132,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
             }
 
             $pathTranslations = $this->scanDirectory($fullPath);
-            $translations = array_merge($translations, $pathTranslations);
+            $translations = [...$translations, ...$pathTranslations];
         }
 
         return $translations;
@@ -169,7 +169,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
 
         foreach ($modules as $module) {
             $moduleTranslations = $this->scanModule($module);
-            $translations = array_merge($translations, $moduleTranslations);
+            $translations = [...$translations, ...$moduleTranslations];
         }
 
         return $translations;
@@ -184,53 +184,39 @@ class TranslationCollectorService implements TranslationCollectorInterface
      */
     public function analyzeDifferences(array $collected, array $existing): array
     {
-        $differences = [
-            'new' => [],
-            'updated' => [],
-            'deleted' => [],
-            'unchanged' => [],
-        ];
+		$collectedMap = collect($collected)->keyBy(fn($t) => $this->makeUniqueKey($t));
+		$existingMap  = collect($existing)->keyBy(fn($t) => $this->makeUniqueKey($t));
 
-        $collectedKeys = array_column($collected, 'key');
-        $existingKeys = array_column($existing, 'key');
+		return [
+			// 新增：在 collected 里有，但 existing 没有
+			'new' => $collectedMap->diffKeys($existingMap)->values()->all(),
 
-        // 找出新增的翻译
-        $newKeys = array_diff($collectedKeys, $existingKeys);
-        foreach ($collected as $translation) {
-            if (in_array($translation['key'], $newKeys)) {
-                $differences['new'][] = $translation;
-            }
-        }
-
-        // 找出已删除的翻译
-        $deletedKeys = array_diff($existingKeys, $collectedKeys);
-        foreach ($existing as $translation) {
-            if (in_array($translation['key'], $deletedKeys)) {
-                $differences['deleted'][] = $translation;
-            }
-        }
-
-        // 找出更新和未变更的翻译
-        $commonKeys = array_intersect($collectedKeys, $existingKeys);
-        foreach ($commonKeys as $key) {
-            $collectedItem = collect($collected)->firstWhere('key', $key);
-            $existingItem = collect($existing)->firstWhere('key', $key);
-
-            if ($this->hasTranslationChanged($collectedItem, $existingItem)) {
-                $differences['updated'][] = $collectedItem;
-            } else {
-                $differences['unchanged'][] = $collectedItem;
-            }
-        }
-
-        // 更新统计信息
-        $this->statistics['new_translations'] = count($differences['new']);
-        $this->statistics['existing_translations'] = count($differences['unchanged']) + count($differences['updated']);
-
-        return $differences;
+			//// 删除：在 existing 里有，但 collected 没有
+			//'deleted' => $existingMap->diffKeys($collectedMap)->values()->all(),
+			//
+			//// 更新：两边都有，但内容不一致
+			//'updated' => $collectedMap
+			//	->intersectByKeys($existingMap)
+			//	->filter(fn($item, $key) => $this->hasTranslationChanged($item, $existingMap[$key]))
+			//	->values()
+			//	->all(),
+			//
+			//// 未变更：两边都有，内容一致
+			//'unchanged' => $collectedMap
+			//	->intersectByKeys($existingMap)
+			//	->filter(fn($item, $key) => ! $this->hasTranslationChanged($item, $existingMap[$key]))
+			//	->values()
+			//	->all(),
+		];
     }
 
-    /**
+	private function makeUniqueKey(array $translation): string
+	{
+		return "{$translation['module']}::{$translation['key']}";
+	}
+
+
+	/**
      * 获取收集统计信息
      *
      * @return array
@@ -281,7 +267,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
             $this->statistics['total_files_scanned']++;
 
             $fileTranslations = $this->scanFile($file->getRealPath());
-            $translations = array_merge($translations, $fileTranslations);
+            $translations = [...$translations, ...$fileTranslations];
         }
 
         return $translations;
@@ -368,8 +354,8 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 foreach ($pathTranslations as &$translation) {
                     $translation['module'] = $moduleName;
                 }
-
-                $translations = array_merge($translations, $pathTranslations);
+				unset($translation);
+                $translations = [...$translations, ...$pathTranslations];
             }
         }
 
@@ -583,7 +569,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
 
         foreach ($languages as $language) {
             $languageTranslations = $this->scanLanguageFiles($language, $langPath);
-            $translations = array_merge($translations, $languageTranslations);
+            $translations = [...$translations, ...$languageTranslations];
         }
 
         $this->log('info', '现有翻译文件扫描完成', [
@@ -688,7 +674,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
 
                 $fileName = basename($phpFile, '.php');
                 $fileTranslations = $this->flattenTranslations($data, $fileName, $phpFile, $language);
-                $translations = array_merge($translations, $fileTranslations);
+                $translations = [...$translations, ...$fileTranslations];
             } catch (\Exception $e) {
                 $this->log('error', "加载PHP翻译文件失败: {$phpFile}", ['error' => $e->getMessage()]);
             }
@@ -716,7 +702,7 @@ class TranslationCollectorService implements TranslationCollectorInterface
             if (is_array($value)) {
                 // 递归处理嵌套数组
                 $nestedTranslations = $this->flattenTranslations($value, $fullKey, $filePath, $language);
-                $translations = array_merge($translations, $nestedTranslations);
+                $translations = [...$translations, ...$nestedTranslations];
             } elseif (is_string($value)) {
                 $translations[] = [
 					'key'            => $fullKey,
@@ -756,16 +742,16 @@ class TranslationCollectorService implements TranslationCollectorInterface
                 'is_direct_text' => true,
 				'file_type' => 'json',
             ];
-        } else {
-            // 翻译键：尝试从翻译文件中查找对应值
-            $value = $this->resolveTranslationValue($extractedText);
-            return [
-				'key'                   => $extractedText,
-				'value'                 => $value['value'] ?? null,
-				'is_direct_text'        => false,
-				'file_type' => $value['file_type'] ?? null,
-			];
         }
+
+		// 翻译键：尝试从翻译文件中查找对应值
+		$value = $this->resolveTranslationValue($extractedText);
+		return [
+			'key'                   => $extractedText,
+			'value'                 => $value['value'] ?? null,
+			'is_direct_text'        => false,
+			'file_type' => $value['file_type'] ?? null,
+		];
     }
 
     /**

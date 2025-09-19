@@ -315,19 +315,18 @@ class CollectTranslationsCommand extends Command
             $differences = $this->collector->analyzeDifferences($translations, $existingTranslations);
 
             $newCount = count($differences['new']);
-            $updatedCount = count($differences['updated']);
+            //$updatedCount = count($differences['updated']);
 
-            if ($newCount === 0 && $updatedCount === 0) {
+            if ($newCount === 0) {
                 $this->info('✅ 没有新的翻译需要上传');
                 return;
             }
 
-            $this->info("📤 准备上传 {$newCount} 个新翻译和 {$updatedCount} 个更新翻译");
+            $this->info("📤 准备上传 {$newCount} 个新翻译");
 
             // 上传新翻译
             if ($newCount > 0) {
-                $uploadData = array_merge($differences['new'], $differences['updated']);
-                $result = $this->apiClient->batchUpload($uploadData);
+                $result = $this->apiClient->batchUpload($differences['new']);
 
                 $successCount = count(array_filter($result, fn($r) => $r['success'] ?? true));
                 $this->info("✅ 成功上传 {$successCount} 个翻译");
